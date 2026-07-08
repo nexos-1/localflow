@@ -166,10 +166,40 @@ class AudioDucker:
                 except Exception:  # noqa: BLE001
                     continue
                 if orig > 0.01:
-                    out.append((key, vol, orig))
+                    out.append((key, vol, orig, _proc_name(s)))
         except Exception as e:  # noqa: BLE001
             log.warning("Audio-Sessions nicht lesbar: %s", e)
         return out
+
+    def _heal_dead_sessions(self, dead: list[tuple]) -> int:
+        """Restore auf einer toten Session-Instanz fehlgeschlagen: die FRISCHE
+        Session desselben Prozesses suchen und dort restaurieren. Nur Sessions
+        anfassen, die noch (etwa) auf duck_volume stehen - hat der Nutzer den
+        Pegel inzwischen selbst veraendert, hat er Vorrang."""
+        from pycaw.pycaw import AudioUtilities
+        healed = 0
+        try:
+            sessions = AudioUtilities.GetAllSessions()
+        except Exception as e:  # noqa: BLE001
+            log.warning("Session-Heilung nicht moeglich: %s", e)
+            sessions = []
+        for orig, pname, err in dead:
+            log.warning("Volume-Restore fuer %r fehlgeschlagen (%s) - "
+                        "suche frische Session", pname or "?", err)
+            if not pname:
+                continue
+            for s in sessions:
+                try:
+                    if _proc_name(s) != pname or s.SimpleAudioVolume is None:
+                        continue
+                    if s.SimpleAudioVolume.GetMasterVolume() <= self.duck_volume + 0.01:
+                        s.SimpleAudioVolume.SetMasterVolume(orig, None)
+                        healed += 1
+                        log.info("Frische %s-Session auf %.0f%% restauriert",
+                                 pname, orig * 100)
+                except Exception:  # noqa: BLE001
+                    pass
+        return healed
 
     def _fade(self, entries: list[tuple], down: bool, steps: int, dur: float,
               abort_on_cmd: bool = False) -> bool:
@@ -198,7 +228,7 @@ class AudioDucker:
 
     def _write_state(self, saved: dict):
         try:
-            data = {key: orig for key, (vol, orig) in saved.items()}
+            data = {key: [orig, pname] for key, (vol, orig, pname) in saved.items()}
             with open(STATE_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f)
         except Exception:  # noqa: BLE001
@@ -213,26 +243,52 @@ class AudioDucker:
             pass
 
     def _restore_leftovers(self):
-        """Nach einem Crash waehrend des Mutes: verwaiste 0%-Pegel reparieren."""
+        """Nach einem Crash waehrend des Mutes: verwaiste 0%-Pegel reparieren.
+        Erst ueber den exakten Session-Key, dann ueber den Prozessnamen -
+        Session-Instanzen ueberleben einen Crash/Neustart oft nicht, der
+        persistierte Windows-Pegel der App aber schon."""
         try:
             with open(STATE_FILE, encoding="utf-8") as f:
-                data = json.load(f)
+                raw = json.load(f)
         except FileNotFoundError:
             return
         except Exception:  # noqa: BLE001
             self._clear_state()
             return
+        # Altes Format: {key: orig}; neues Format: {key: [orig, pname]}
+        leftover = {}
+        for key, val in raw.items():
+            try:
+                orig, pname = (float(val[0]), str(val[1])) if isinstance(val, list) \
+                    else (float(val), "")
+            except (TypeError, ValueError, IndexError):
+                continue
+            leftover[key] = (orig, pname)
         restored = 0
         try:
             from pycaw.pycaw import AudioUtilities
-            for s in AudioUtilities.GetAllSessions():
-                if s.SimpleAudioVolume is None:
-                    continue
+            sessions = [s for s in AudioUtilities.GetAllSessions()
+                        if s.SimpleAudioVolume is not None]
+            for s in sessions:
                 key = _session_key(s)
-                if key in data:
+                if key in leftover:
                     try:
-                        s.SimpleAudioVolume.SetMasterVolume(float(data[key]), None)
+                        s.SimpleAudioVolume.SetMasterVolume(leftover.pop(key)[0], None)
                         restored += 1
+                    except Exception:  # noqa: BLE001
+                        pass
+            # Rest: Instanz existiert nicht mehr -> frische Session desselben
+            # Prozesses (nur wenn sie noch auf dem Duck-Pegel haengt).
+            for orig, pname in leftover.values():
+                if not pname:
+                    continue
+                for s in sessions:
+                    try:
+                        if (_proc_name(s) == pname
+                                and s.SimpleAudioVolume.GetMasterVolume()
+                                <= self.duck_volume + 0.01):
+                            s.SimpleAudioVolume.SetMasterVolume(orig, None)
+                            restored += 1
                     except Exception:  # noqa: BLE001
                         pass
         except Exception:  # noqa: BLE001

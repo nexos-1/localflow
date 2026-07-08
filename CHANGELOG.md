@@ -43,6 +43,11 @@
 - Dictation crashed on stop when sounds were enabled (two `sounds.play`
   call sites missed in the platform-layer refactor; the whole package is
   now verified with pyflakes)
+- Audio ducking: a per-session volume restore that fails (e.g. the app's
+  audio session expired mid-dictation) is no longer silently swallowed -
+  it is logged and healed by restoring the fresh session of the same
+  process, so no app can get stuck at the ducked volume anymore. Crash
+  recovery gained the same process-name fallback.
 - Dictionary replacements containing backslashes (e.g. Windows paths) no
   longer crash the dictation (`re` treated the replacement as a template)
 - Settings API now validates value types; a bad value (e.g. a string in
