@@ -279,16 +279,18 @@ install time.
 - Replace the Windows `creationflags` with `start_new_session=True` on
   POSIX. Ollama ships natively for macOS. `psutil` is a direct dependency.
 
-### 3.9 STT
-- Works day one: faster-whisper via ctranslate2 CPU/int8 (arm64 wheel
-  verified). Latency on Apple Silicon CPU is UNMEASURED - benchmark
-  `large-v3-turbo` on real hardware first (the live preview loop is
-  latency-sensitive: ~150-250 ms per pass on CUDA today).
-- If too slow: implement `TranscriberBackend` on `mlx-whisper` (Metal) or
-  `pywhispercpp` (whisper.cpp) - both are assumptions to validate
-  (quality, language detection; the hallucination filters only need
-  segment logprob/no-speech fields - verify the chosen engine exposes
-  them).
+### 3.9 STT - MEASURED 2026-07-08 (GitHub macos-latest, Apple Silicon)
+- `large-v3-turbo` on ctranslate2 CPU/int8 is **far too slow**: ~20 s to
+  transcribe 16 s of speech; preview-style passes 18-28 s each (model load
+  14 s). Even granting that GitHub runners are low-core M-chips and real
+  M-series Macs may be ~3-4x faster, that still lands at 5-7 s per pass -
+  unusable for the live preview (needs <0.7 s) and painful for the final
+  pass. Reproduce with `gh workflow run stt-bench` (tests/bench_stt_ci.py).
+- CONCLUSION: a Metal-backed engine is **mandatory**, not optional, for
+  the Mac port: implement `TranscriberBackend` on `mlx-whisper` (Metal) or
+  `pywhispercpp` (whisper.cpp, Metal) - or fall back to a much smaller
+  model at a quality cost. The hallucination filters only need segment
+  logprob/no-speech fields - verify the chosen engine exposes them.
 
 ### 3.10 Settings, importer, dashboard
 - Per-platform defaults: `overlay_font` "Segoe UI" -> system font; hotkey
