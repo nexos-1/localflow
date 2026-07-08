@@ -1,0 +1,19 @@
+# Manuell ausloesbarer STT-Benchmark auf echtem Apple Silicon
+# (laedt das Whisper-Modell ~1.6 GB - deshalb nicht bei jedem Push).
+#   Ausloesen: gh workflow run stt-bench
+name: stt-bench
+
+on: [workflow_dispatch]
+
+jobs:
+  bench:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install faster-whisper==1.2.1 ctranslate2==4.8.0 numpy==2.4.6
+      - name: STT-Latenz auf Apple Silicon messen
+        run: python tests/bench_stt_ci.py

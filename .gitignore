@@ -1,0 +1,20 @@
+# Environments
+.venv/
+__pycache__/
+*.pyc
+
+# Private Sprachdaten - NIEMALS committen (echte Diktate des Nutzers)
+tests/real_audio/
+
+# Generierte Test-Assets
+tests/audio/*.wav
+
+# Lokales
+.claude/
+*.log
+
+# Laufzeit-Datenordner (History-DB, Config, Sounds) - neben dem Code, damit
+# der Pfad startunabhaengig ist; enthaelt private Diktate, NIE committen.
+data/
+# Einmalige Migrations-Buendel
+_LocalFlow_Migration/

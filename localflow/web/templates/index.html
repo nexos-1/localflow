@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>LocalFlow</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  /* Gemutetes Apple-Grau-Schema (passend zur Overlay-Pille): Mid-Grey-
+     Hintergrund, hellere Karten, dunkle Schrift (primaer fast schwarz,
+     sekundaer dunkelgrau), Akzent = Pillen-Grau statt Blau. */
+  :root { --bg:#8e8e93; --card:#aeaeb2; --border:#7c7c80; --text:#1c1c1e; --dim:#3a3a3c; --accent:#636366; --red:#8a2226; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--text); font:14px/1.5 "Segoe UI",system-ui,sans-serif; }
+  header { display:flex; align-items:center; gap:16px; padding:14px 24px; border-bottom:1px solid var(--border); }
+  header h1 { font-size:17px; }
+  header .dot { width:10px; height:10px; border-radius:50%; background:var(--accent); }
+  nav { display:flex; gap:4px; margin-left:24px; }
+  nav button { background:none; border:none; color:var(--dim); padding:6px 14px; border-radius:8px; cursor:pointer; font-size:14px; }
+  nav button.active { background:var(--card); color:var(--text); }
+  main { max-width:960px; margin:0 auto; padding:24px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+  .stat { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .stat .v { font-size:22px; font-weight:600; }
+  .stat .l { color:var(--dim); font-size:12px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:12px; }
+  .hist-item { display:grid; grid-template-columns:76px 1fr auto; gap:6px 14px;
+               border-bottom:1px solid var(--border); padding:14px 8px; cursor:pointer;
+               border-radius:10px; align-items:start; }
+  .hist-item:hover { background:#a2a2a7; }
+  .hist-item:last-child { border-bottom:none; }
+  .day-head { position:sticky; top:0; background:var(--card); color:var(--dim); font-size:12px;
+              font-weight:600; text-transform:uppercase; letter-spacing:.08em;
+              padding:16px 8px 8px; border-bottom:1px solid var(--border); z-index:1; }
+  .app-chip { border:1px solid var(--border); border-radius:99px; padding:0 8px; font-size:11px; }
+  .hist-time { color:var(--dim); font-size:13px; padding-top:1px; }
+  .hist-actions { display:flex; gap:2px; opacity:0; transition:opacity .15s; }
+  .hist-item:hover .hist-actions { opacity:1; }
+  .hist-actions button { background:none; border:none; color:var(--dim); cursor:pointer;
+                         font-size:15px; padding:2px 7px; border-radius:6px; }
+  .hist-actions button:hover { background:var(--border); color:var(--text); }
+  .hist-text { white-space:pre-wrap; line-height:1.55; }
+  .hist-sub { grid-column:2 / 4; color:var(--dim); font-size:12px; display:none; white-space:pre-wrap; }
+  .hist-item.open .hist-sub { display:block; }
+  input, select, textarea { background:#c7c7cc; border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 10px; font:inherit; width:100%; }
+  input::placeholder { color:#55555a; }
+  label { display:block; color:var(--dim); font-size:12px; margin:12px 0 4px; }
+  .row { display:flex; gap:10px; align-items:end; }
+  .row > div { flex:1; }
+  button.btn { background:var(--accent); color:white; border:none; border-radius:8px; padding:8px 16px; cursor:pointer; font:inherit; }
+  button.btn.ghost { background:transparent; border:1px solid var(--border); color:var(--dim); }
+  button.btn.danger { background:transparent; border:none; color:var(--red); padding:4px 8px; }
+  .dict-item { display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); padding:8px 4px; }
+  .dict-item:last-child { border-bottom:none; }
+  .tag { font-size:11px; padding:1px 8px; border-radius:99px; border:1px solid var(--border); color:var(--dim); }
+  .flex1 { flex:1; }
+  .dim { color:var(--dim); }
+  #toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--accent); color:white; padding:8px 20px; border-radius:99px; opacity:0; transition:opacity .3s; pointer-events:none; }
+  #toast.show { opacity:1; }
+  #offline { position:fixed; top:0; left:0; right:0; z-index:100; display:none;
+             background:#4a1519; color:#ffd9da; border-bottom:1px solid #7d2a2e;
+             text-align:center; padding:8px 16px; font-size:13px; }
+  .checkrow { display:flex; align-items:center; gap:8px; margin-top:12px; }
+  .checkrow input { width:auto; }
+</style>
+</head>
+<body>
+<div id="offline">LocalFlow läuft gerade nicht. Starte die App (Startmenü → „LocalFlow"), diese Seite verbindet sich dann automatisch neu.</div>
+<header>
+  <div class="dot"></div><h1>LocalFlow</h1>
+  <nav>
+    <button data-tab="history" class="active">History</button>
+    <button data-tab="dictionary">Wörterbuch</button>
+    <button data-tab="settings">Einstellungen</button>
+  </nav>
+</header>
+<main>
+  <section id="tab-history">
+    <div class="stats" id="stats"></div>
+    <div class="card">
+      <input id="search" placeholder="History durchsuchen…">
+    </div>
+    <div class="card" id="history"></div>
+    <div style="text-align:center;margin:8px 0 24px">
+      <button class="btn ghost" id="h-more">Mehr laden</button>
+    </div>
+  </section>
+
+  <section id="tab-dictionary" style="display:none">
+    <div class="card">
+      <div class="row">
+        <div><label>Phrase (gesprochen)</label><input id="d-phrase"></div>
+        <div><label>Ersetzung / Snippet-Text (leer = Erkennungshilfe)</label><input id="d-repl"></div>
+        <button class="btn" id="d-add">Hinzufügen</button>
+      </div>
+      <div class="checkrow"><input type="checkbox" id="d-snippet"><span>Snippet (Phrase sagen → Text wird eingefügt)</span></div>
+    </div>
+    <div class="card" id="dict"></div>
+  </section>
+
+  <section id="tab-settings" style="display:none">
+    <div class="card" id="settings-form">
+      <label>Diktat-Hotkey</label>
+      <div class="row">
+        <div><input id="s-hotkey"></div>
+        <button class="btn ghost" id="cap-hotkey" style="white-space:nowrap">⌨ Aufnehmen</button>
+      </div>
+      <label>Zweiter Diktat-Hotkey (optional, läuft parallel zum ersten)</label>
+      <div class="row">
+        <div><input id="s-hotkey2" placeholder="leer = deaktiviert"></div>
+        <button class="btn ghost" id="cap-hotkey2" style="white-space:nowrap">⌨ Aufnehmen</button>
+      </div>
+      <label>Modus</label>
+      <select id="s-ptt_mode">
+        <option value="both">Halten + Doppeltipp = Freisprechen (empfohlen)</option>
+        <option value="hold">Nur Halten (loslassen stoppt)</option>
+        <option value="toggle">Drücken startet / drücken stoppt</option>
+      </select>
+      <label>Zusätzlicher Toggle-Hotkey (optional, startet/stoppt Freisprechen)</label>
+      <div class="row">
+        <div><input id="s-toggle_hotkey"></div>
+        <button class="btn ghost" id="cap-toggle_hotkey" style="white-space:nowrap">⌨ Aufnehmen</button>
+      </div>
+      <div class="checkrow"><input type="checkbox" id="s-swallow_mouse_hotkey"><span>Maus-Hotkey verschluckt den Klick (nötig, damit markierter Text ersetzt statt der Cursor versetzt wird; deaktiviert dafür Browser-Vor/Zurück auf der Taste)</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-voice_commands_enabled"><span>Sprachbefehle aktiv (am Ende des Diktats sagen) – der Befehl wird nicht getippt, sondern als Taste gedrückt</span></div>
+      <div id="voice-cmd-editor" style="margin:6px 0 0 26px">
+        <div id="voice-cmd-rows"></div>
+        <button type="button" class="btn ghost" id="voice-cmd-add" style="font-size:12px;padding:4px 10px;margin-top:4px">+ Befehl hinzufügen</button>
+        <div class="dim" style="font-size:11px;margin-top:5px">Taste wählen, Auslöser-Wörter dahinter (mehrere mit Komma). Wird nur am Satz-Ende erkannt. Tipp: 2 Wörter sind zuverlässiger als 1 (weniger Fehlauslösung), und Whisper hört „press enter" gern als „presenter".</div>
+      </div>
+      <label>Sprache</label>
+      <select id="s-language"><option value="auto">Automatisch</option><option value="de">Deutsch</option><option value="en">Englisch</option></select>
+      <label>Mikrofon</label>
+      <select id="s-audio_device"><option value="">Windows-Standard</option></select>
+      <label>Ollama-Modell (AI-Cleanup)</label>
+      <select id="s-ollama_model"></select>
+      <div class="checkrow"><input type="checkbox" id="s-ai_cleanup"><span>AI-Cleanup aktiv</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-play_sounds"><span>Sounds abspielen</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-duck_audio"><span>System-Audio während Aufnahme stummschalten (YouTube, Spotify …)</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-live_preview"><span>Live-Vorschau: Transkript schon während des Sprechens in der Overlay-Pille zeigen (der finale, bereinigte Text wird erst beim Loslassen eingefügt)</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-smart_spacing"><span>Smart Spacing: automatisch ein Leerzeichen einfügen, wenn das Diktat direkt an bestehenden Text ansetzt (in Terminals automatisch aus)</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-autostart"><span>Mit Windows starten</span></div>
+      <div style="margin-top:16px"><button class="btn" id="s-save">Speichern</button></div>
+    </div>
+    <div class="card">
+      <b>Widget-Design (Overlay-Pille)</b>
+      <p class="dim" style="margin:4px 0 10px">Änderungen wirken sofort - einfach ausprobieren.</p>
+      <label>Design</label>
+      <select id="s-overlay_theme">
+        <option value="dark">Dunkel – schwarze Pille (Standard)</option>
+        <option value="light">Hell – mittelgraue Pille, weißer Text</option>
+      </select>
+      <label>Schriftart</label>
+      <select id="s-overlay_font"></select>
+      <label>Schriftgröße</label>
+      <select id="s-overlay_font_size"></select>
+      <div class="checkrow"><input type="checkbox" id="s-glass_pill"><span>Glas-Optik: Pille durchscheinend (Desktop schimmert durch – glasig, nicht verschwommen)</span></div>
+    </div>
+    <div class="card">
+      <b>Wispr Flow Import</b>
+      <p class="dim" style="margin:6px 0 12px">Übernimmt Wörterbuch und History aus der installierten Wispr-Flow-App.</p>
+      <button class="btn ghost" id="s-import">Jetzt importieren</button>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+<script>
+// Alle API-Aufrufe tragen den CSRF-Custom-Header. Ein Browser kann diesen
+// bei einem Cross-Origin-Request nur mit (serverseitig scheiterndem)
+// CORS-Preflight setzen - der Server lehnt jede state-aendernde Anfrage ohne
+// ihn ab. Same-Origin (dieses Dashboard) ist nicht betroffen.
+const _fetch = window.fetch;
+window.fetch = (url, opts = {}) =>
+  _fetch(url, {...opts, headers: {...(opts.headers || {}), "X-LocalFlow": "1"}})
+    .catch(err => { goOffline(); throw err; });
+const $ = s => document.querySelector(s);
+
+// Läuft die App gerade nicht (Neustart, Absturz), sollen keine leeren
+// Felder wie zurückgesetzte Daten aussehen: Banner zeigen und pollen,
+// bis der Server wieder antwortet - dann komplett neu laden (holt auch
+// Settings/Hotkey frisch).
+let _reconnect = null;
+function goOffline() {
+  $("#offline").style.display = "block";
+  if (_reconnect) return;
+  _reconnect = setInterval(async () => {
+    try {
+      const r = await _fetch("/api/stats", {headers: {"X-LocalFlow": "1"}});
+      if (r.ok) location.reload();
+    } catch {}
+  }, 2500);
+}
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+function toast(msg) { const t=$("#toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2200); }
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+  document.querySelectorAll("main section").forEach(s=>s.style.display="none");
+  $("#tab-"+b.dataset.tab).style.display="";
+});
+
+function fmtDauer(sec) {
+  const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+  return h >= 1 ? `${h} h ${m} min` : `${m} min`;
+}
+
+async function loadStats() {
+  const s = await (await fetch("/api/stats")).json();
+  const box = $("#stats");
+  box.replaceChildren();
+  for (const [v, l] of [
+    [s.dictations, "Diktate"],
+    [s.total_words, "Wörter"],
+    [s.words_today, "Wörter heute"],
+    [fmtDauer(s.time_saved_s || 0), "Zeit gespart vs. Tippen"],
+    [Math.round(s.total_audio_s/60)+" min", "Audio gesamt"],
+  ]) {
+    const d = el("div", "stat");
+    d.append(el("div", "v", String(v)), el("div", "l", l));
+    box.append(d);
+  }
+}
+
+const PAGE = 50;
+let histOffset = 0;
+
+function dayLabel(ts) {
+  const d = new Date(ts*1000), now = new Date();
+  const midnight = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((midnight(now) - midnight(d)) / 86400000);
+  if (diff === 0) return "Heute";
+  if (diff === 1) return "Gestern";
+  return d.toLocaleDateString("de-AT", {weekday:"long", day:"numeric", month:"long",
+    year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined});
+}
+
+function histItem(e) {
+  const item = el("div", "hist-item");
+  const time = el("div", "hist-time",
+    new Date(e.timestamp*1000).toLocaleTimeString("de-AT", {hour:"2-digit", minute:"2-digit"}));
+  const text = el("div", "hist-text", e.formatted_text || "");
+
+  const actions = el("div", "hist-actions");
+  const copy = el("button", null, "⧉");
+  copy.title = "Kopieren";
+  copy.onclick = ev => { ev.stopPropagation(); navigator.clipboard.writeText(e.formatted_text||""); toast("Kopiert"); };
+  const del = el("button", null, "✕");
+  del.title = "Löschen";
+  del.onclick = async ev => {
+    ev.stopPropagation();
+    await fetch("/api/history/"+encodeURIComponent(e.id), {method:"DELETE"});
+    item.remove(); loadStats();
+  };
+  actions.append(copy, del);
+
+  const breakdown = (e.stt_ms || e.cleanup_ms)
+    ? ` · STT ${Math.round(e.stt_ms||0)} ms · Cleanup ${Math.round(e.cleanup_ms||0)} ms` : "";
+  const sub = el("div", "hist-sub",
+    `${e.app || "?"} · ${e.language || "?"} · ${Math.round(e.latency_ms||0)} ms${breakdown}\nRoh: ${e.asr_text || ""}`);
+
+  item.append(time, text, actions, sub);
+  item.onclick = () => item.classList.toggle("open");
+  return item;
+}
+
+async function loadHistory(append) {
+  const q = $("#search").value;
+  if (!append) histOffset = 0;
+  const url = `/api/history?limit=${PAGE}&offset=${histOffset}` + (q?"&search="+encodeURIComponent(q):"");
+  const h = await (await fetch(url)).json();
+  const box = $("#history");
+  if (!append) { box.replaceChildren(); box.dataset.lastDay = ""; }
+  if (!h.length && !append) { box.append(el("span", "dim", "Noch keine Diktate.")); }
+  for (const e of h) {
+    const day = dayLabel(e.timestamp);
+    if (day !== box.dataset.lastDay) {
+      box.append(el("div", "day-head", day));
+      box.dataset.lastDay = day;
+    }
+    box.append(histItem(e));
+  }
+  histOffset += h.length;
+  $("#h-more").style.display = h.length < PAGE ? "none" : "";
+}
+$("#h-more").onclick = () => loadHistory(true);
+$("#search").addEventListener("input", () => { clearTimeout(window._st); window._st=setTimeout(()=>loadHistory(false),300); });
+
+async function loadDict() {
+  const d = await (await fetch("/api/dictionary")).json();
+  const box = $("#dict");
+  box.replaceChildren();
+  if (!d.length) { box.append(el("span", "dim", "Wörterbuch ist leer.")); return; }
+  for (const e of d) {
+    const item = el("div", "dict-item");
+    item.append(el("b", null, e.phrase));
+    if (e.replacement) {
+      item.append(el("span", null, "→"), el("span", "flex1", e.replacement));
+    } else {
+      item.append(el("span", "flex1 dim", "Erkennungshilfe"));
+    }
+    if (e.is_snippet) item.append(el("span", "tag", "Snippet"));
+    const del = el("button", "btn danger", "✕");
+    del.onclick = async () => { await fetch("/api/dictionary/"+encodeURIComponent(e.id), {method:"DELETE"}); loadDict(); };
+    item.append(del);
+    box.append(item);
+  }
+}
+$("#d-add").onclick = async () => {
+  const phrase = $("#d-phrase").value.trim();
+  if (!phrase) return;
+  await fetch("/api/dictionary", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({phrase, replacement: $("#d-repl").value, is_snippet: $("#d-snippet").checked})});
+  $("#d-phrase").value = $("#d-repl").value = ""; $("#d-snippet").checked = false;
+  loadDict(); toast("Hinzugefügt");
+};
+
+const VOICE_KEYS = ["enter", "backspace", "escape", "tab", "delete"];
+function voiceRow(key, phrases) {
+  const row = el("div");
+  row.style.cssText = "display:flex; gap:8px; margin-bottom:6px; align-items:center";
+  const sel = el("select");
+  sel.style.cssText = "flex:0 0 120px; width:auto";
+  for (const k of VOICE_KEYS) { const o = el("option", null, k); o.value = k; sel.append(o); }
+  sel.value = VOICE_KEYS.includes(key) ? key : "enter";
+  const inp = el("input");
+  inp.style.flex = "1";
+  inp.value = (phrases || []).join(", ");
+  inp.placeholder = "z.B. press enter, gogo";
+  const del = el("button", "btn danger", "✕");
+  del.type = "button"; del.title = "Entfernen";
+  del.onclick = () => row.remove();
+  row.append(sel, inp, del);
+  return row;
+}
+function renderVoiceCommands(cmds) {
+  const box = $("#voice-cmd-rows");
+  if (!box) return;
+  box.replaceChildren();
+  (cmds || []).forEach(c => box.append(voiceRow(c.key, c.phrases)));
+}
+function collectVoiceCommands() {
+  const out = [];
+  for (const r of $("#voice-cmd-rows").children) {
+    const key = r.querySelector("select").value;
+    const phrases = r.querySelector("input").value.split(",").map(s => s.trim()).filter(Boolean);
+    if (phrases.length) out.push({ key, phrases });
+  }
+  return out;
+}
+document.addEventListener("click", e => {
+  if (e.target && e.target.id === "voice-cmd-add")
+    $("#voice-cmd-rows").append(voiceRow("enter", []));
+});
+
+const FONT_CHOICES = ["Segoe UI", "Segoe UI Semibold", "Arial", "Calibri",
+  "Consolas", "Cascadia Mono", "Cascadia Code", "Georgia", "Verdana", "Tahoma"];
+const FONT_SIZES = [9, 10, 11, 12, 13, 14, 16, 18];
+function liveSave(obj) {
+  return fetch("/api/settings", {method: "POST",
+    headers: {"Content-Type": "application/json"}, body: JSON.stringify(obj)});
+}
+function renderDesign(s) {
+  const tsel = $("#s-overlay_theme");
+  if (tsel) {
+    tsel.value = (s.overlay_theme === "light") ? "light" : "dark";
+    tsel.onchange = () => liveSave({overlay_theme: tsel.value});
+  }
+  const fsel = $("#s-overlay_font"), zsel = $("#s-overlay_font_size"), g = $("#s-glass_pill");
+  if (fsel) {
+    const cur = s.overlay_font || "Segoe UI";
+    const names = FONT_CHOICES.includes(cur) ? FONT_CHOICES : [cur, ...FONT_CHOICES];
+    fsel.replaceChildren();
+    for (const f of names) { const o = el("option", null, f); o.value = f; fsel.append(o); }
+    fsel.value = cur;
+    fsel.onchange = () => liveSave({overlay_font: fsel.value});
+  }
+  if (zsel) {
+    const cur = s.overlay_font_size || 11;
+    const sizes = FONT_SIZES.includes(cur) ? FONT_SIZES : [...FONT_SIZES, cur].sort((a, b) => a - b);
+    zsel.replaceChildren();
+    for (const z of sizes) { const o = el("option", null, z + " px"); o.value = String(z); zsel.append(o); }
+    zsel.value = String(cur);
+    zsel.onchange = () => liveSave({overlay_font_size: parseInt(zsel.value, 10)});
+  }
+  if (g) { g.checked = !!s.glass_pill; g.onchange = () => liveSave({glass_pill: g.checked}); }
+}
+
+async function loadSettings() {
+  const [s, devices, models] = await Promise.all([
+    (await fetch("/api/settings")).json(),
+    (await fetch("/api/devices")).json(),
+    (await fetch("/api/models")).json(),
+  ]);
+  const devSel = $("#s-audio_device");
+  devSel.replaceChildren(el("option", null, "Windows-Standard"));
+  devSel.firstChild.value = "";
+  for (const d of devices) {
+    const o = el("option", null, d.name + (d.default ? " (Standard)" : ""));
+    o.value = String(d.index);
+    devSel.append(o);
+  }
+  devSel.value = s.audio_device === null || s.audio_device === undefined ? "" : String(s.audio_device);
+  const modSel = $("#s-ollama_model");
+  modSel.replaceChildren();
+  const names = models.includes(s.ollama_model) ? models : [s.ollama_model, ...models];
+  for (const m of names) { const o = el("option", null, m); o.value = m; modSel.append(o); }
+  modSel.value = s.ollama_model;
+  for (const k of ["hotkey","hotkey2","toggle_hotkey","language","ptt_mode"]) $("#s-"+k).value = s[k] ?? "";
+  $("#s-ai_cleanup").checked = !!s.ai_cleanup;
+  $("#s-play_sounds").checked = !!s.play_sounds;
+  $("#s-duck_audio").checked = !!s.duck_audio;
+  $("#s-live_preview").checked = !!s.live_preview;
+  $("#s-smart_spacing").checked = !!s.smart_spacing;
+  renderDesign(s);
+  $("#s-swallow_mouse_hotkey").checked = !!s.swallow_mouse_hotkey;
+  $("#s-voice_commands_enabled").checked = !!s.voice_commands_enabled;
+  renderVoiceCommands(s.voice_commands || []);
+  $("#s-autostart").checked = !!s.autostart;
+}
+
+for (const target of ["hotkey", "hotkey2", "toggle_hotkey"]) {
+  $("#cap-"+target).onclick = async (ev) => {
+    const btn = ev.currentTarget;
+    btn.textContent = "Drücke Kombination …";
+    btn.disabled = true;
+    try {
+      const r = await fetch("/api/hotkey/capture", {method:"POST"});
+      const d = await r.json();
+      if (r.ok) { $("#s-"+target).value = d.combo; toast("Erkannt: " + d.combo + " – noch speichern"); }
+      else toast(d.error || "Fehlgeschlagen");
+    } finally {
+      btn.textContent = "⌨ Aufnehmen";
+      btn.disabled = false;
+    }
+  };
+}
+$("#s-save").onclick = async () => {
+  const dev = $("#s-audio_device").value;
+  const body = {
+    hotkey: $("#s-hotkey").value, hotkey2: $("#s-hotkey2").value,
+    toggle_hotkey: $("#s-toggle_hotkey").value,
+    ptt_mode: $("#s-ptt_mode").value,
+    language: $("#s-language").value, ollama_model: $("#s-ollama_model").value,
+    audio_device: dev === "" ? null : parseInt(dev, 10),
+    ai_cleanup: $("#s-ai_cleanup").checked, play_sounds: $("#s-play_sounds").checked,
+    duck_audio: $("#s-duck_audio").checked,
+    live_preview: $("#s-live_preview").checked,
+    smart_spacing: $("#s-smart_spacing").checked,
+    swallow_mouse_hotkey: $("#s-swallow_mouse_hotkey").checked,
+    voice_commands_enabled: $("#s-voice_commands_enabled").checked,
+    voice_commands: collectVoiceCommands(),
+    autostart: $("#s-autostart").checked,
+  };
+  await fetch("/api/settings", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
+  toast("Gespeichert");
+};
+$("#s-import").onclick = async () => {
+  const r = await fetch("/api/import-wispr", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
+  const d = await r.json();
+  toast(r.ok ? `Importiert: ${d.dictionary} Wörterbuch, ${d.history} History` : d.error);
+  loadDict(); loadHistory(); loadStats();
+};
+
+const safe = p => p.catch(() => {});  // Offline-Fall macht schon das Banner
+safe(loadStats()); safe(loadHistory(false)); safe(loadDict()); safe(loadSettings());
+setInterval(() => {
+  safe(loadStats());
+  if (histOffset <= PAGE) safe(loadHistory(false));  // Pagination des Nutzers nicht zuruecksetzen
+}, 15000);
+</script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+# CI: schnelle, hardwarefreie Pruefungen auf Windows UND macOS.
+# Der macOS-Job ist die Verifikations-Schiene fuer das (auf echter Hardware
+# ungetestete) darwin-Backend: Import-/Konstruktions-Smoke auf einem echten
+# Mac-Runner plus die portablen Unit-Tests. STT-/GPU-Tests laufen bewusst
+# nicht in CI (Modelle/Hardware); E2E-Tests brauchen eine laufende App.
+name: ci
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Bewusst NICHT requirements.txt (CUDA-Wheels ~1 GB): nur was die
+      # hardwarefreien Tests brauchen.
+      - run: pip install numpy sounddevice keyboard requests psutil
+      - name: Unit-Tests
+        run: |
+          python tests/test_dictation_modes.py
+          python tests/test_commands.py
+          python tests/test_second_hotkey.py
+          python tests/test_levelmeter.py
+          python tests/test_cleanup_start.py
+          python tests/test_darwin_port.py
+      - name: Backend-Smoke (win32)
+        run: python -c "from localflow.platform import get_backends; print(sorted(vars(get_backends())))"
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install numpy sounddevice requests psutil pynput==1.8.2 pyobjc-framework-Cocoa==12.2.1 pyobjc-framework-Quartz==12.2.1
+      - name: Unit-Tests (portabel)
+        run: |
+          python tests/test_dictation_modes.py
+          python tests/test_commands.py
+          python tests/test_levelmeter.py
+          python tests/test_cleanup_start.py
+          python tests/test_darwin_port.py
+      - name: Backend-Smoke (darwin auf echtem macOS)
+        run: |
+          python -c "
+          from localflow.platform import get_backends
+          b = get_backends()
+          print('darwin-Backend konstruiert:', sorted(vars(b)))
+          # Konstruktion der Kernobjekte (headless moeglich):
+          d = b.make_ducker(duck_volume=0.0); d.duck(); d.restore()
+          o = b.make_overlay(); o.set_state('recording'); o.set_text('ci')
+          from localflow.platform.darwin import inject
+          assert inject.PASTE_OK == 'ok'
+          # Pasteboard-Roundtrip (echtes AppKit, kein UI noetig):
+          inject._set_clipboard_text('localflow-ci')
+          assert inject._get_clipboard_text() == 'localflow-ci'
+          print('NSPasteboard-Roundtrip OK')
+          "
