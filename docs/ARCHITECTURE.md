@@ -12,7 +12,10 @@ local LLM (Ollama) for cleanup. No network calls beyond localhost.
 | `main.py` | Entry point, orchestration, tray icon (pystray), autostart (HKCU Run key), live-preview loop, voice-command execution |
 | `hotkey.py` | Dictation state machine (hold / hold+double-tap hands-free / toggle) + low-level keyboard and mouse hooks; testable without hooks |
 | `audio.py` | Mic capture 16 kHz mono (sounddevice), stream open only while recording, adaptive level meter (auto-gain for the waveform) |
-| `stt.py` | faster-whisper `large-v3-turbo` on CUDA (fallback chain to CPU), language restriction, hallucination + prompt-echo guards |
+| `stt.py` | faster-whisper `large-v3-turbo` on CUDA (fallback chain to CPU), language restriction |
+| `stt_mlx.py` | mlx-whisper (Metal) for Apple Silicon - same interface as `stt.py`, plus an energy gate replacing the missing VAD |
+| `stt_factory.py` | picks the platform engine (mlx on darwin, faster-whisper elsewhere; explicit device pins force faster-whisper) |
+| `stt_quality.py` | engine-independent hallucination + prompt-echo guards, shared by both engines |
 | `cleanup.py` | Ollama cleanup, prompt calibrated for light-touch formatting; health check + on-demand `ollama serve` with double-spawn protection |
 | `commands.py` | Trailing voice commands ("press enter" -> key press), phrase matching on the raw transcript |
 | `pipeline.py` | STT -> voice-command extraction -> cleanup -> dictionary/snippets -> history; GPU inference serialized |

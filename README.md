@@ -103,9 +103,11 @@ bash install.sh
 Grant Microphone + Accessibility (and if asked, Input Monitoring)
 permissions on first start. Expect rough edges: the port has never been
 used interactively on real hardware, there is no overlay yet (audio
-feedback only), and no audio ducking. Also note: CPU-only Whisper is too
-slow for dictation on Apple Silicon (measured ~20 s for 16 s of audio); a
-Metal-backed engine is required and planned. Status: [PORTING.md](PORTING.md).
+feedback only), and no audio ducking. STT on Apple Silicon uses a
+Metal engine (mlx-whisper), installed automatically and functionally
+tested in CI on real Apple Silicon runners; Intel Macs fall back to
+CPU-only Whisper, which is too slow for dictation (measured ~20 s for
+16 s of audio). Status: [PORTING.md](PORTING.md).
 
 ## Usage
 
@@ -165,7 +167,9 @@ localflow/
   controller.py  platform-neutral dictation state machine (hold/double-tap/toggle)
   hotkey.py      Win32 keyboard/mouse low-level hooks feeding the controller
   audio.py       mic capture (16 kHz mono), adaptive level meter
-  stt.py         faster-whisper + quality guards
+  stt.py         faster-whisper (CUDA/CPU); stt_mlx.py: mlx-whisper (Metal,
+                 Apple Silicon); stt_factory.py picks the platform engine,
+                 stt_quality.py holds the shared quality guards
   cleanup.py     Ollama prompt calibrated for light-touch formatting
   commands.py    trailing voice commands ("press enter" -> key press)
   pipeline.py    STT -> voice commands -> cleanup -> dictionary -> history

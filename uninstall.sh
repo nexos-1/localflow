@@ -31,9 +31,11 @@ main() {
     echo "[2] Kein LaunchAgent."
   fi
 
-  # 3. Whisper-Modell-Cache (~1,6 GB, ausserhalb des Ordners)
+  # 3. Whisper-Modell-Cache (~1,6 GB, ausserhalb des Ordners) - faster-whisper
+  #    (CPU/Intel) und mlx-community (Metal-Engine auf Apple Silicon)
   local found=0
-  for m in "$HOME"/.cache/huggingface/hub/models--*faster-whisper*; do
+  for m in "$HOME"/.cache/huggingface/hub/models--*faster-whisper* \
+           "$HOME"/.cache/huggingface/hub/models--mlx-community--whisper*; do
     [ -d "$m" ] || continue
     found=1
     echo "[3] Whisper-Modell-Cache: $m ($(du -sh "$m" 2>/dev/null | cut -f1))"

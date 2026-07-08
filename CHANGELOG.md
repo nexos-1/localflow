@@ -24,12 +24,17 @@
   smoke-tests the darwin backend on real macOS
 - `tests/test_darwin_port.py`: platform-independent checks (plist,
   keymaps, combo translation, backend surface)
+- Metal STT engine for Apple Silicon: `stt_mlx.py` (mlx-whisper) with the
+  same interface as the faster-whisper engine, auto-selected via
+  `stt_factory.py`; shared hallucination/prompt-echo guards extracted to
+  `stt_quality.py`; functionally tested in CI on real Apple Silicon
+  runners (`tests/test_stt_mlx_ci.py`, `mlx-bench` workflow; measured
+  3.2-3.5 s warm for 16 s audio on the paravirtualized runner GPU vs.
+  ~20 s on CPU)
 - One-click uninstall: `uninstall.bat` (Windows) / `uninstall.sh` (macOS) -
   stops the app, removes autostart + Start Menu entry / LaunchAgent, and
   optionally deletes the Whisper model cache, the Ollama cleanup model and
   the whole folder (dictation history only after explicit confirmation)
-
-### Added
 - Clipboard hygiene: transient clipboard entries (dictation text, smart-
   spacing probe, restore) are excluded from the Windows clipboard history
   (Win+V) and cloud sync, and a previously empty clipboard is emptied

@@ -78,9 +78,11 @@ Alternativ im Terminal: `powershell -ExecutionPolicy Bypass -File install.ps1`.
 **macOS (experimentell)**: `bash install.sh`, dann
 `.venv/bin/python run.py`. Beim ersten Start Mikrofon- und
 Bedienungshilfen-Permission erteilen. Interaktiv ungetestet, noch kein
-Overlay (Feedback ueber Sounds), kein Audio-Ducking. Achtung: Whisper auf
-CPU ist auf Apple Silicon zu langsam zum Diktieren (gemessen ~20 s fuer
-16 s Audio) - eine Metal-Engine ist noetig und geplant, siehe PORTING.md.
+Overlay (Feedback ueber Sounds), kein Audio-Ducking. STT laeuft auf
+Apple Silicon ueber eine Metal-Engine (mlx-whisper), die automatisch
+installiert und in der CI auf echten Apple-Silicon-Runnern funktional
+getestet wird; Intel-Macs fallen auf CPU-Whisper zurueck, das zum
+Diktieren zu langsam ist (gemessen ~20 s fuer 16 s Audio). Siehe PORTING.md.
 
 ## Deinstallation
 
@@ -131,7 +133,10 @@ localflow/
   controller.py  plattformneutrale Diktat-Zustandsmaschine (Halten/Doppeltipp/Toggle)
   hotkey.py      Win32-Low-Level-Hooks (Tastatur/Maus), fuettern den Controller
   audio.py       Mikrofon 16 kHz mono (sounddevice), adaptiver Pegelmesser
-  stt.py         faster-whisper large-v3-turbo, CUDA float16, Fallback CPU
+  stt.py         faster-whisper large-v3-turbo, CUDA float16, Fallback CPU;
+                 stt_mlx.py: mlx-whisper (Metal, Apple Silicon),
+                 stt_factory.py waehlt die Engine, stt_quality.py teilt
+                 die Qualitaets-Guards
   cleanup.py     Ollama gemma3:4b, Prompt kalibriert auf Light-Formatting
   commands.py    Sprachbefehle am Diktat-Ende ("press enter" -> Taste)
   pipeline.py    STT -> Sprachbefehle -> Cleanup -> Woerterbuch/Snippets -> History
