@@ -9,8 +9,6 @@ import statistics
 import sys
 import tempfile
 import time
-import wave
-import contextlib
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -43,9 +41,13 @@ def main():
 
     import mlx_whisper
 
+    # Audio als float32-Array uebergeben (kein ffmpeg auf den Runnern;
+    # LocalFlow transkribiert in Produktion ohnehin Puffer, keine Dateien)
+    audio = audio.astype(np.float32)
+
     # Kaltstart (inkl. Modell-Download+Load)
     t0 = time.perf_counter()
-    result = mlx_whisper.transcribe(wav_path, path_or_hf_repo=MODEL)
+    result = mlx_whisper.transcribe(audio, path_or_hf_repo=MODEL)
     cold = time.perf_counter() - t0
     print(f"\nKALTSTART (Download+Load+Transkription): {cold:.1f}s")
     print(f"  Sprache: {result.get('language')}  "
@@ -55,7 +57,7 @@ def main():
     times = []
     for _ in range(3):
         t0 = time.perf_counter()
-        mlx_whisper.transcribe(wav_path, path_or_hf_repo=MODEL)
+        mlx_whisper.transcribe(audio, path_or_hf_repo=MODEL)
         times.append(time.perf_counter() - t0)
     full_ms = statistics.median(times) * 1000
     print(f"\nVOLL warm ({dur:.1f}s Audio): median {full_ms:.0f} ms")
