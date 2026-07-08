@@ -17,7 +17,7 @@ jobs:
           python-version: "3.12"
       # Bewusst NICHT requirements.txt (CUDA-Wheels ~1 GB): nur was die
       # hardwarefreien Tests brauchen.
-      - run: pip install numpy sounddevice keyboard requests psutil
+      - run: pip install numpy sounddevice keyboard requests psutil pywin32 pystray Pillow
       - name: Unit-Tests
         run: |
           python tests/test_dictation_modes.py
