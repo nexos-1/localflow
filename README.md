@@ -97,8 +97,13 @@ Windows key and type "LocalFlow".
 
 ```bash
 bash install.sh
-.venv/bin/python run.py
+.venv/bin/python run.py     # or: Spotlight -> "LocalFlow"
 ```
+
+The installer also creates `~/Applications/LocalFlow.app` - a locally
+generated launcher, so you can start LocalFlow from Spotlight/Launchpad
+like a regular app. No signing or notarization involved: the bundle is
+built on your machine, so Gatekeeper never quarantines it.
 
 Grant Microphone + Accessibility (and if asked, Input Monitoring)
 permissions on first start. Expect rough edges: the port has never been

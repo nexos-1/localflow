@@ -36,16 +36,25 @@ else
   echo "         Installieren: https://ollama.com/download, dann: ollama pull gemma3:4b"
 fi
 
+# ~/Applications/LocalFlow.app erzeugen (lokal gebaut = kein Gatekeeper,
+# keine Signatur/Notarisierung noetig) - Start dann per Spotlight.
+.venv/bin/python -c "from localflow.platform.darwin.integration import ensure_launcher_shortcut; ensure_launcher_shortcut()" \
+  && echo "Launcher erstellt: ~/Applications/LocalFlow.app" \
+  || echo "Hinweis: Launcher-Bundle konnte nicht erstellt werden (App laeuft trotzdem)."
+
 cat <<'EOF'
 
 Fertig. Start:
+    Spotlight (Cmd+Leertaste) -> "LocalFlow"
+  oder mit sichtbaren Logs:
     .venv/bin/python run.py
 
 WICHTIG (macOS-Permissions, beim ersten Start):
   - Mikrofon-Zugriff erlauben
   - Systemeinstellungen -> Datenschutz & Sicherheit -> Bedienungshilfen:
-    dein Terminal (bzw. Python) hinzufuegen  [Paste + Hotkeys]
+    die App freigeben, die LocalFlow gestartet hat (Terminal beim
+    Terminal-Start, LocalFlow/Python beim Spotlight-Start)  [Paste + Hotkeys]
   - ggf. auch unter "Eingabemonitoring"
-Der Port ist EXPERIMENTELL: noch kein Overlay (Feedback ueber Sounds),
-Details und Status: PORTING.md
+  - danach die freigegebene App einmal neu starten
+Der Port ist EXPERIMENTELL - Details und Status: PORTING.md
 EOF

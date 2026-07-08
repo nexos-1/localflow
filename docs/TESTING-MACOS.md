@@ -30,11 +30,16 @@ bash install.sh
 .venv/bin/python run.py
 ```
 
+Nach `install.sh` liegt ausserdem **LocalFlow.app in ~/Applications** -
+ein lokal erzeugter Starter, damit die App spaeter per Spotlight startet
+(ohne Terminal). **Fuer den Test bitte trotzdem wie oben aus dem Terminal
+starten**: die Log-Ausgaben sind fuer uns Gold wert. Der Spotlight-Start
+ist ein eigener Checklisten-Punkt (H).
+
 Beim **allerersten Start** laedt die App das Whisper-Modell (~1,5 GB von
 HuggingFace) herunter - das dauert je nach Leitung ein paar Minuten. Im
 Terminal siehst du danach eine Zeile wie `mlx-whisper ... geladen (Metal)
-in Xs`. Bitte das Terminal offen lassen: die Log-Ausgaben sind fuer uns
-Gold wert.
+in Xs`.
 
 ## Berechtigungen (der heikelste Teil)
 
@@ -121,7 +126,12 @@ Jeweils ein kurzes Diktat hinein:
 - [ ] Dashboard-History: Diktate erscheinen mit Sprache/App/Dauer
 - [ ] Statistik-Karten zaehlen hoch
 
-### H - Autostart, Beenden, Deinstallation (zum Schluss)
+### H - App-Start, Autostart, Beenden, Deinstallation (zum Schluss)
+- [ ] App beenden, dann **Spotlight-Start**: `Cmd + Leertaste` ->
+      "LocalFlow" -> Enter. Menueleisten-Icon erscheint, Diktat
+      funktioniert. Falls macOS neue Permission-Prompts zeigt: welcher
+      App ordnet es die Berechtigung zu (LocalFlow? Python? Terminal?) -
+      bitte genau notieren, das ist fuer uns wichtig
 - [ ] Menueleisten-Menue -> "Beim Anmelden starten" aktivieren, ab- und
       wieder anmelden: LocalFlow laeuft wieder (Icon da)
 - [ ] "Beenden" ueber das Menue: Prozess endet sauber

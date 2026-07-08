@@ -21,7 +21,7 @@ main() {
     echo "[1] LocalFlow laeuft nicht."
   fi
 
-  # 2. LaunchAgent (Autostart)
+  # 2. LaunchAgent (Autostart) + Launcher-Bundle (Spotlight-Start)
   local plist="$HOME/Library/LaunchAgents/io.github.nexos-1.localflow.plist"
   if [ -f "$plist" ]; then
     echo "[2] Entferne LaunchAgent (Autostart)..."
@@ -29,6 +29,10 @@ main() {
     rm -f "$plist"
   else
     echo "[2] Kein LaunchAgent."
+  fi
+  if [ -d "$HOME/Applications/LocalFlow.app" ]; then
+    echo "[2] Entferne ~/Applications/LocalFlow.app..."
+    rm -rf "$HOME/Applications/LocalFlow.app"
   fi
 
   # 3. Whisper-Modell-Cache (~1,6 GB, ausserhalb des Ordners) - faster-whisper

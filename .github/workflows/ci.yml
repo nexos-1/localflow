@@ -62,3 +62,11 @@ jobs:
           "
       - name: AppKit-Overlay (NSPanel-Pill, Runloop von Hand gepumpt)
         run: python tests/test_darwin_overlay_ci.py
+      - name: Launcher-Bundle real erzeugen (~/Applications/LocalFlow.app)
+        run: |
+          pip install Pillow
+          python -c "from localflow.platform.darwin.integration import ensure_launcher_shortcut; ensure_launcher_shortcut()"
+          plutil -lint "$HOME/Applications/LocalFlow.app/Contents/Info.plist"
+          test -x "$HOME/Applications/LocalFlow.app/Contents/MacOS/localflow"
+          test -f "$HOME/Applications/LocalFlow.app/Contents/Resources/localflow.icns"
+          cat "$HOME/Applications/LocalFlow.app/Contents/MacOS/localflow"

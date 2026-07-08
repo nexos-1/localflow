@@ -334,13 +334,22 @@ install time.
   terminal, not LocalFlow. That is the supported model for this project:
   run from source (`install.sh` + venv) and grant the permissions to your
   terminal - documented in docs/TESTING-MACOS.md.
-- **Packaging is deliberately OUT OF SCOPE** (product decision
-  2026-07-08): no `.app` bundle, no codesigning, no notarization, no
-  Apple Developer account. This is open source - people run it from
-  source like on Windows. Background for anyone who wants to build a
-  bundle themselves: py2app/briefcase with a stable bundle id and
-  `LSUIElement = true` would work, but ad-hoc signing resets TCC grants
-  on every rebuild.
+- **Signing/notarization is deliberately OUT OF SCOPE** (product decision
+  2026-07-08): no Apple Developer account, no codesigning, no
+  notarization. This is open source - people run it from source like on
+  Windows.
+- **Easy launch WITHOUT notarization is solved anyway** (implemented
+  2026-07-08): `ensure_launcher_shortcut()` (darwin/integration.py)
+  generates `~/Applications/LocalFlow.app` locally - a wrapper bundle
+  whose executable is a shell script exec'ing the venv Python with
+  run.py, plus Info.plist (`LSUIElement=true`, stable bundle id = the
+  LaunchAgent label) and a generated .icns. Because the bundle is
+  CREATED ON THE USER'S MACHINE (never downloaded), it carries no
+  quarantine attribute - Gatekeeper never engages, no signature needed.
+  Runs at every app start (like the Windows Start Menu shortcut) and at
+  the end of install.sh; uninstall.sh removes it. CI verifies the real
+  bundle on macOS runners (plutil -lint, exec bit, icns). OPEN (tester):
+  which identity TCC prompts attribute to when started via Spotlight.
 
 ---
 

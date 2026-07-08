@@ -106,4 +106,19 @@ for attr in sorted(inj_attrs):
     assert hasattr(dinj, attr), f"darwin.inject.{attr} fehlt (main.py nutzt es)"
 print(f"Injector-Vertrag OK ({len(inj_attrs)} Attribute aus main.py gedeckt)")
 
+# 9) Launcher-Bundle (Spotlight-Start ohne Notarisierung): pure Builder
+from localflow import __version__  # noqa: E402
+from localflow.platform.darwin.integration import (  # noqa: E402
+    build_info_plist, build_launcher_script)
+
+info = plistlib.loads(build_info_plist(__version__))
+assert info["CFBundleIdentifier"] == LABEL          # gleiche ID wie LaunchAgent
+assert info["CFBundleExecutable"] == "localflow"
+assert info["LSUIElement"] is True                  # Menueleisten-App, kein Dock
+assert info["CFBundleShortVersionString"] == __version__
+script = build_launcher_script("/opt/py thon/bin/python3", "/tmp/whispr clone/run.py")
+assert script.startswith("#!/bin/bash")
+assert '"/opt/py thon/bin/python3" "/tmp/whispr clone/run.py"' in script  # Quoting
+print("Launcher-Bundle-Builder OK")
+
 print("\nDARWIN PORT TESTS PASSED")

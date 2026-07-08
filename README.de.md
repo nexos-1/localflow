@@ -76,7 +76,10 @@ richtet alles ein und startet die App. Kein Terminal noetig.
 Alternativ im Terminal: `powershell -ExecutionPolicy Bypass -File install.ps1`.
 
 **macOS (experimentell)**: `bash install.sh`, dann
-`.venv/bin/python run.py`. Beim ersten Start Mikrofon- und
+`.venv/bin/python run.py` - oder per Spotlight "LocalFlow": der Installer
+erzeugt ein lokales `~/Applications/LocalFlow.app` (auf deinem Rechner
+gebaut = kein Gatekeeper, keine Signatur/Notarisierung noetig). Beim
+ersten Start Mikrofon- und
 Bedienungshilfen-Permission erteilen. Interaktiv ungetestet, kein
 Audio-Ducking. Overlay-Pill und Metal-STT-Engine (mlx-whisper) sind
 enthalten und werden in der CI auf echten Apple-Silicon-Runnern
