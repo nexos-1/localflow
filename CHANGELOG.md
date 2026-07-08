@@ -17,9 +17,15 @@
   then runs install.ps1; `install.ps1` now also finds the `py` launcher)
 - Experimental macOS backend (`localflow/platform/darwin/`): paste via
   NSPasteboard + Cmd+V, hotkeys via pynput, voice-command keys, sounds via
-  afplay, LaunchAgent autostart, flock single-instance; no overlay yet
-  (NullOverlay placeholder), no ducking. **Untested on real hardware** -
-  see PORTING.md phase 3.
+  afplay, LaunchAgent autostart, flock single-instance; no ducking.
+  **Untested on real hardware** - see PORTING.md phase 3.
+- macOS overlay: the animated pill as an AppKit NSPanel with the full
+  Windows choreography (waveform, live transcript, hover expand, themes,
+  glass) - the animation/layout core is now shared (`overlay_model.py`)
+  so both platforms stay in sync; state cycle CI-tested on real macOS
+  runners (`tests/test_darwin_overlay_ci.py`). Fixed a missing
+  `set_theme` on the overlay contract that would have crashed the app at
+  startup on macOS.
 - `install.sh` (macOS), CI workflow (Windows + macOS runners) that
   smoke-tests the darwin backend on real macOS
 - `tests/test_darwin_port.py`: platform-independent checks (plist,

@@ -251,6 +251,17 @@ install time.
   icon click" becomes a plain menu item there.
 - The `Overlay` facade (queue-based `set_state/set_level/set_text/...`)
   stays identical; only the render host differs per platform.
+- **IMPLEMENTED 2026-07-08** exactly as designed above
+  (`platform/darwin/overlay.py`): the choreography (tweens, easing,
+  colors, text layout, timing) was extracted to the shared
+  `overlay_model.py` and is used by BOTH the Tk and the AppKit pill, so
+  future polish lands on both platforms. Animation runs on a
+  self-re-arming `AppHelper.callLater` tick (60 fps visible, 10 Hz idle);
+  the panel hangs off pystray's NSApp loop - no main.py changes needed.
+  CI-verified on real macOS runners (tests/test_darwin_overlay_ci.py):
+  panel construction, full dictation state cycle, glass alpha,
+  click-through, drawRect execution. NOT yet verified: how it LOOKS
+  (positioning, font metrics, hover feel) - needs eyes on real hardware.
 
 ### 3.4 Ducking backend
 - macOS has no public per-app volume API (assumption carried over from the
@@ -330,9 +341,10 @@ install time.
 
 ## 4. Open risks
 
-1. Main-loop restructuring (tray + overlay on one AppKit loop) is the
-   largest structural change; Windows keeps its current Tk thread, so the
-   overlay host must be fully backend-owned.
+1. ~~Main-loop restructuring (tray + overlay on one AppKit loop)~~
+   RESOLVED without restructuring: the overlay host is fully
+   backend-owned; on darwin the NSPanel + its timer simply attach to the
+   NSApp loop that pystray already runs on the main thread (3.3).
 2. TCC friction: permissions bound to the bundle; rebuilds with changing
    signatures re-prompt; dev runs from the venv behave differently than
    the bundled app.
@@ -397,9 +409,9 @@ hotkeys (pynput: PTT, toggle via GlobalHotKeys, capture; `win` maps to Cmd;
 mouse side buttons assumed at button values 3/4; swallow via
 `darwin_intercept` with graceful degradation), sounds (shared synthesis +
 afplay), autostart (LaunchAgent plist + launchctl), single instance
-(flock), no-op ducker (disables head-trim automatically) and a **NullOverlay
-placeholder** - the animated pill needs an AppKit NSPanel host and is
-Phase 3b, only sensible to build on real hardware. `install.sh` exists.
+(flock), no-op ducker (disables head-trim automatically) and the animated
+pill as an **AppKit NSPanel** (section 3.3; NullOverlay remains as the
+no-pyobjc fallback). `install.sh` exists.
 
 Verification status - be honest about this:
 - Verified from Windows: syntax of all modules, plist generation, Carbon
@@ -414,7 +426,9 @@ Verification status - be honest about this:
   end-to-end dictation. Anyone running this on a Mac is a tester.
 
 ### Phase 3b - remaining on real hardware
-- NSPanel overlay + tray on one AppKit main loop (section 3.3).
+- ~~NSPanel overlay + tray on one AppKit main loop (section 3.3)~~ DONE
+  and CI-tested (construction + state cycle); visual QA (position, font
+  metrics, hover feel) still needs real eyes.
 - Manual e2e matrix: paste into TextEdit, browser, terminal, Slack;
   hold/double-tap/toggle modes; mouse-button hotkeys; dashboard capture.
 - ~~Benchmark STT on Apple Silicon; decide on mlx/whisper.cpp backend~~

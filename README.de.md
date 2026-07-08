@@ -5,10 +5,10 @@ loslassen - der formatierte Text landet in der aktiven App. Kein Cloud-Dienst,
 kein Abo: Whisper (STT) und Ollama (AI-Cleanup) laufen auf der eigenen Maschine.
 
 > **Windows ist erstklassig unterstuetzt, macOS experimentell**: Ein
-> Darwin-Backend existiert (Paste, Hotkeys, Sprachbefehle, Sounds); die
-> portablen Teile laufen in der CI auf echten macOS-Runnern, interaktiv auf
-> einem Mac wurde die App aber noch nie benutzt, und ein Overlay fehlt -
-> Status und Plan in [PORTING.md](PORTING.md).
+> Darwin-Backend existiert (Paste, Hotkeys, Sprachbefehle, Sounds,
+> Metal-STT-Engine, AppKit-Overlay-Pill) und laeuft in der CI auf echten
+> macOS-Runnern - interaktiv auf einem Mac wurde die App aber noch nie
+> benutzt. Status und Plan in [PORTING.md](PORTING.md).
 
 ## Bedienung
 
@@ -77,11 +77,10 @@ Alternativ im Terminal: `powershell -ExecutionPolicy Bypass -File install.ps1`.
 
 **macOS (experimentell)**: `bash install.sh`, dann
 `.venv/bin/python run.py`. Beim ersten Start Mikrofon- und
-Bedienungshilfen-Permission erteilen. Interaktiv ungetestet, noch kein
-Overlay (Feedback ueber Sounds), kein Audio-Ducking. STT laeuft auf
-Apple Silicon ueber eine Metal-Engine (mlx-whisper), die automatisch
-installiert und in der CI auf echten Apple-Silicon-Runnern funktional
-getestet wird; Intel-Macs fallen auf CPU-Whisper zurueck, das zum
+Bedienungshilfen-Permission erteilen. Interaktiv ungetestet, kein
+Audio-Ducking. Overlay-Pill und Metal-STT-Engine (mlx-whisper) sind
+enthalten und werden in der CI auf echten Apple-Silicon-Runnern
+funktional getestet; Intel-Macs fallen auf CPU-Whisper zurueck, das zum
 Diktieren zu langsam ist (gemessen ~20 s fuer 16 s Audio). Siehe PORTING.md.
 
 ## Deinstallation
@@ -146,7 +145,8 @@ localflow/
   db.py          SQLite: history + dictionary
   settings.py    JSON-Config
   overlay.py     Animierte Overlay-Pill (Tk): Waveform, Live-Transkript,
-                 Hover-Ausklappen, Glas-Optik
+                 Hover-Ausklappen, Glas-Optik; overlay_model.py teilt die
+                 Choreografie mit der macOS-Pill (AppKit)
   sounds.py      Start/Stop-Chimes (generiert)
   importer.py    Import aus Wisprs flow.sqlite (Dashboard-Button)
   web/           Flask-Dashboard (History, Woerterbuch, Settings, Import)

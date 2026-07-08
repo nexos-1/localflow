@@ -8,9 +8,9 @@ on your own machine.
 Built as a drop-in replacement for Wispr Flow. German README: [README.de.md](README.de.md)
 
 > **Windows is first-class. macOS is experimental**: a Darwin backend exists
-> (paste, hotkeys, voice commands, sounds) and its portable pieces are
-> smoke-tested in CI on real macOS runners, but the app has never been used
-> interactively on a Mac and has no overlay yet - see [PORTING.md](PORTING.md)
+> (paste, hotkeys, voice commands, sounds, Metal STT engine, AppKit overlay
+> pill) and is smoke-tested in CI on real macOS runners - but the app has
+> never been used interactively on a Mac. See [PORTING.md](PORTING.md)
 > for status and plan.
 
 ## Features
@@ -102,9 +102,8 @@ bash install.sh
 
 Grant Microphone + Accessibility (and if asked, Input Monitoring)
 permissions on first start. Expect rough edges: the port has never been
-used interactively on real hardware, there is no overlay yet (audio
-feedback only), and no audio ducking. STT on Apple Silicon uses a
-Metal engine (mlx-whisper), installed automatically and functionally
+used interactively on real hardware and has no audio ducking. The overlay
+pill and the Metal STT engine (mlx-whisper) are included and functionally
 tested in CI on real Apple Silicon runners; Intel Macs fall back to
 CPU-only Whisper, which is too slow for dictation (measured ~20 s for
 16 s of audio). Status: [PORTING.md](PORTING.md).
@@ -176,7 +175,8 @@ localflow/
   inject.py      clipboard paste with multi-format preservation, key sender
   ducking.py     system audio mute worker (fast fade, crash recovery)
   overlay.py     animated overlay pill (tkinter): waveform, live transcript,
-                 hover expand, glass look
+                 hover expand, glass look; overlay_model.py holds the
+                 platform-neutral choreography (shared with the macOS pill)
   db.py          SQLite history + dictionary
   importer.py    one-click import from Wispr Flow's flow.sqlite
   web/           Flask dashboard
