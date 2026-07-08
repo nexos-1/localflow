@@ -1,0 +1,22 @@
+# Manuell ausloesbarer mlx-whisper-Benchmark auf Apple Silicon:
+# prueft Metal-Verfuegbarkeit auf dem Runner und misst die Latenz der
+# Metal-Engine (Pflicht-Kandidat fuer den Mac-Port, PORTING.md 3.9).
+#   Ausloesen: gh workflow run mlx-bench
+# mlx bewusst auf 0.31.2 gepinnt (14-Tage-Supply-Chain-Regel; 0.32.0 ist
+# vom 2026-07-07).
+name: mlx-bench
+
+on: [workflow_dispatch]
+
+jobs:
+  bench:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install mlx==0.31.2 mlx-whisper==0.4.3 numpy==2.4.6
+      - name: mlx-whisper-Latenz auf Apple Silicon messen
+        run: python tests/bench_mlx_ci.py
