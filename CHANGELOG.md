@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-07-08
+
+First public release.
 
 ### Added
 - Smart spacing: a leading space is inserted automatically when the paste
