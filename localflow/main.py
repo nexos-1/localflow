@@ -436,7 +436,7 @@ class LocalFlowApp:
             self._user_paused = not self._user_paused
             with self._capture_lock:
                 self.paused = self._user_paused or self._capture_count > 0
-            icon.icon = make_icon("#9a9a9a" if self._user_paused else "#4f8cff")
+            icon.icon = make_icon("#9a9a9a" if self._user_paused else "#ff9500")
 
         def toggle_autostart(icon, item):
             set_autostart(not is_autostart_enabled())

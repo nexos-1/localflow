@@ -35,6 +35,10 @@
   (Win+V) and cloud sync, and a previously empty clipboard is emptied
   again after the paste instead of keeping the dictation
 
+### Changed
+- App icon (tray + Start Menu shortcut) and the dashboard header dot are
+  now orange (#ff9500) instead of blue; the paused tray state stays grey
+
 ### Fixed
 - Dictation crashed on stop when sounds were enabled (two `sounds.play`
   call sites missed in the platform-layer refactor; the whole package is

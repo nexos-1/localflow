@@ -9,7 +9,7 @@ from .settings import APP_DIR
 ICO_PATH = os.path.join(APP_DIR, "localflow.ico")
 
 
-def make_icon(color: str = "#4f8cff", size: int = 64) -> Image.Image:
+def make_icon(color: str = "#ff9500", size: int = 64) -> Image.Image:
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     s = size / 64  # Basis-Design ist 64px
