@@ -52,7 +52,7 @@ HALLUCINATION_PHRASES = {
 VAD_PARAMS = {"min_silence_duration_ms": 500}
 
 
-def _is_hallucination(segments, duration_s: float) -> bool:
+def _is_hallucination(segments) -> bool:
     """Gesamttext als Halluzination einstufen, wenn er einer bekannten
     Stille-Phrase entspricht UND die Modell-Signale schwach sind."""
     if not segments:
@@ -137,7 +137,7 @@ class Transcriber:
         # Qualitaets-Filter pro Segment (Stille-Halluzinationen)
         kept = [s for s in segments
                 if not (s.no_speech_prob > 0.6 and s.avg_logprob < -1.0)]
-        if _is_hallucination(kept, getattr(info, "duration", 0.0)):
+        if _is_hallucination(kept):
             # Kein Klartext ins Log (Projektpolicy) - nur Metadaten.
             log.info("Halluzination verworfen (%d Segmente)", len(kept))
             kept = []

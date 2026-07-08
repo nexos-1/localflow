@@ -68,7 +68,10 @@ class Pipeline:
             if not e["replacement"]:
                 continue
             pattern = re.compile(r"\b" + re.escape(e["phrase"]) + r"\b", re.IGNORECASE)
-            new_text, n = pattern.subn(e["replacement"], text)
+            # Replacement als Funktion, nicht als String: re wuerde einen
+            # String als Template parsen und bei Backslashes (z.B. Windows-
+            # Pfade wie C:\Users) mit "bad escape" jedes Diktat crashen.
+            new_text, n = pattern.subn(lambda m, r=e["replacement"]: r, text)
             if n:
                 text = new_text
                 result.used_dictionary_ids.append(e["id"])
@@ -94,8 +97,10 @@ class Pipeline:
 
     def transcribe_preview(self, audio) -> str:
         """Schneller Roh-Transkript-Durchlauf fuer die Live-Vorschau: nur STT,
-        KEIN Cleanup/Dictionary. Teilt sich den GPU-Lock mit dem finalen Lauf,
-        laeuft aber nur waehrend der Aufnahme (kein Ueberlappen mit process)."""
+        KEIN Cleanup/Dictionary. Teilt sich den GPU-Lock mit dem finalen Lauf:
+        ein beim Loslassen noch laufender Preview-Durchlauf kann process()
+        daher kurz verzoegern - der Lock stellt sicher, dass sich beide nie
+        ueberlappen."""
         if self.transcriber is None:
             return ""
         lang = self.settings.get("language")

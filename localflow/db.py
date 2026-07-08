@@ -121,8 +121,12 @@ class Database:
         # Lokale Mitternacht (nicht UTC) - passt zum "Heute"-Label im Frontend.
         import time as _t
         local_midnight = _t.mktime(_t.localtime()[:3] + (0, 0, 0, 0, 0, -1))
+        # Gleicher Status-Filter wie oben - sonst zaehlen error/empty-Zeilen
+        # (und frisch importierte Wispr-Eintraege mit heutigem Timestamp)
+        # in "Woerter heute" mit.
         today = con.execute(
-            "SELECT COALESCE(SUM(num_words),0) w FROM history WHERE timestamp >= ?",
+            """SELECT COALESCE(SUM(num_words),0) w FROM history
+               WHERE timestamp >= ? AND status IN ('ok','imported')""",
             (local_midnight,)).fetchone()
         return {"dictations": row["n"], "total_words": row["words"],
                 "avg_latency_ms": row["avg_latency"], "total_audio_s": row["total_audio_s"],
@@ -148,6 +152,14 @@ class Database:
     def delete_history(self, hid: str):
         with self._conn() as con:
             con.execute("DELETE FROM history WHERE id=?", (hid,))
+
+    def count_history(self, status: str | None = None) -> int:
+        q = "SELECT COUNT(*) FROM history"
+        args: list = []
+        if status is not None:
+            q += " WHERE status=?"
+            args.append(status)
+        return self._conn().execute(q, args).fetchone()[0]
 
     # --- Dictionary ---
 

@@ -121,8 +121,39 @@ def _restore_clipboard(snap: dict):
                     win32clipboard.SetClipboardData(fmt, data)
             except Exception as e:  # noqa: BLE001
                 log.warning("Clipboard-Restore Format %s fehlgeschlagen: %s", fmt, e)
+        # Auch das Restore vom Verlauf ausnehmen - der Original-Eintrag steht
+        # dort schon; ein Duplikat wuerde den Verlauf nur zumuellen.
+        _mark_transient()
     finally:
         win32clipboard.CloseClipboard()
+
+
+_EXCLUDE_FORMATS: list[int] | None = None
+
+
+def _exclusion_formats() -> list[int]:
+    """Windows-Formate, die einen Clipboard-Eintrag vom Verlauf (Win+V) und
+    vom Cloud-Sync ausschliessen (derselbe Mechanismus wie bei Passwort-
+    Managern). Unsere transienten Eintraege (Diktat, Sonde, Restore) sollen
+    den Verlauf des Nutzers nicht zumuellen."""
+    global _EXCLUDE_FORMATS
+    if _EXCLUDE_FORMATS is None:
+        _EXCLUDE_FORMATS = [
+            win32clipboard.RegisterClipboardFormat(name)
+            for name in ("ExcludeClipboardContentFromMonitorProcessing",
+                         "CanIncludeInClipboardHistory",
+                         "CanUploadToCloudClipboard")
+        ]
+    return _EXCLUDE_FORMATS
+
+
+def _mark_transient():
+    """Im GEOEFFNETEN Clipboard: aktuellen Eintrag von Verlauf/Cloud ausnehmen."""
+    for fmt in _exclusion_formats():
+        try:
+            win32clipboard.SetClipboardData(fmt, b"\x00\x00\x00\x00")
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _set_clipboard_text(text: str, retries: int = 5):
@@ -132,12 +163,25 @@ def _set_clipboard_text(text: str, retries: int = 5):
             try:
                 win32clipboard.EmptyClipboard()
                 win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, text)
+                _mark_transient()
                 return
             finally:
                 win32clipboard.CloseClipboard()
         except Exception:  # noqa: BLE001
             time.sleep(0.03 * (attempt + 1))
     raise RuntimeError("Clipboard konnte nicht gesetzt werden")
+
+
+def _clear_clipboard():
+    """Clipboard leeren - war es vor dem Diktat leer, darf danach nicht das
+    Diktat darin haengenbleiben (Strg+V wuerde sonst 'zufaellig' das zuletzt
+    Gesagte einfuegen)."""
+    if not _open_clipboard():
+        return
+    try:
+        win32clipboard.EmptyClipboard()
+    finally:
+        win32clipboard.CloseClipboard()
 
 
 def _get_clipboard_text() -> str | None:
@@ -188,10 +232,15 @@ def _probe_char_before_caret() -> str | None:
         if _get_clipboard_text() != _PROBE_SENTINEL:
             return None  # Selektion vorhanden (oder App kopiert ganze Zeile)
         ctypes.windll.user32.keybd_event(VK_SHIFT, 0, 0, 0)
-        time.sleep(0.01)
-        _tap(VK_LEFT)
-        time.sleep(0.01)
-        ctypes.windll.user32.keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0)
+        try:
+            time.sleep(0.01)
+            _tap(VK_LEFT)
+            time.sleep(0.01)
+        finally:
+            # Shift IMMER loesen: bliebe es nach einer Exception logisch
+            # gedrueckt, tippt der Nutzer bis zum naechsten physischen
+            # Shift-Druck nur Grossbuchstaben/Selektionen.
+            ctypes.windll.user32.keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0)
         time.sleep(0.03)
         _combo(VK_CONTROL, VK_C)
         time.sleep(0.06)
@@ -364,4 +413,8 @@ def paste_text(text: str, restore_delay: float = 1.0, target_hwnd: int | None = 
         time.sleep(restore_delay)
         if snap:
             _restore_clipboard(snap)
+        else:
+            # Clipboard war vorher leer/nicht sicherbar: leeren statt das
+            # Diktat dauerhaft liegen zu lassen.
+            _clear_clipboard()
         return PASTE_OK

@@ -108,11 +108,19 @@ class LocalFlowApp:
             log.exception("Modell-Laden fehlgeschlagen")
 
     def _run_dashboard(self):
-        from .web.app import create_app
-        app = create_app(self.settings, self.db, self)
         port = self.settings.get("dashboard_port")
-        log.info("Dashboard: http://127.0.0.1:%s", port)
-        app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
+        try:
+            from .web.app import create_app
+            app = create_app(self.settings, self.db, self)
+            log.info("Dashboard: http://127.0.0.1:%s", port)
+            app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
+        except Exception:  # noqa: BLE001
+            # Ohne das stirbt der Daemon-Thread STUMM (pythonw hat kein
+            # stderr) und "Dashboard oeffnen" zeigt eine tote Seite.
+            log.exception("Dashboard-Start fehlgeschlagen (Port %s belegt?)", port)
+            time.sleep(3)  # Tray existiert beim App-Start evtl. noch nicht
+            self._notify("Dashboard nicht verfuegbar",
+                         f"Start auf Port {port} fehlgeschlagen - siehe Log.")
 
     # --- Aufnahme-Steuerung ---
 
@@ -134,6 +142,11 @@ class LocalFlowApp:
             )
         else:
             self.controller.mode = self.settings.get("ptt_mode")
+        # Laeuft gerade eine Aufnahme, gehoert ihr Loslassen zum ALTEN Hook -
+        # nach dem Tausch kaeme das up-Event nie an und die Aufnahme liefe
+        # bis zum Watchdog weiter. Deshalb vor dem Tausch sauber beenden.
+        if self.controller.state != "idle":
+            self.controller.force_stop()
         # Beide Hooks stoppen und frisch aufsetzen.
         for attr in ("ptt", "ptt2"):
             if getattr(self, attr) is not None:

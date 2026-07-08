@@ -29,10 +29,34 @@
   optionally deletes the Whisper model cache, the Ollama cleanup model and
   the whole folder (dictation history only after explicit confirmation)
 
+### Added
+- Clipboard hygiene: transient clipboard entries (dictation text, smart-
+  spacing probe, restore) are excluded from the Windows clipboard history
+  (Win+V) and cloud sync, and a previously empty clipboard is emptied
+  again after the paste instead of keeping the dictation
+
 ### Fixed
 - Dictation crashed on stop when sounds were enabled (two `sounds.play`
   call sites missed in the platform-layer refactor; the whole package is
   now verified with pyflakes)
+- Dictionary replacements containing backslashes (e.g. Windows paths) no
+  longer crash the dictation (`re` treated the replacement as a template)
+- Settings API now validates value types; a bad value (e.g. a string in
+  `min_duration_s`) is ignored instead of breaking every following
+  dictation across restarts, and saving writes the config file once
+  instead of once per key
+- Input device list no longer shows duplicate entries per device (one
+  entry per name, WASAPI variant preferred)
+- Changing the dictation hotkey while a recording is running now stops
+  the recording cleanly instead of letting it run into the watchdog
+- The smart-spacing caret probe releases Shift even if it fails midway
+  (no more stuck Shift key)
+- Dashboard thread no longer dies silently when the port is taken
+  (logged + tray notification)
+- "Words today" stat no longer counts error rows or freshly imported
+  entries; Wispr import cleans up its temp copy of the database
+- `hotkey2` default is now empty as documented (existing configs are
+  untouched)
 
 ## 0.2.0 - 2026-07-07
 

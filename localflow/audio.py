@@ -148,22 +148,27 @@ class Recorder:
 
 
 def list_input_devices() -> list[dict]:
-    """Eingabegeraete, dedupliziert auf die WASAPI-Variante je Name."""
-    devices = []
-    seen = set()
+    """Eingabegeraete, EIN Eintrag je Geraetename: die WASAPI-Variante
+    gewinnt (geringste Latenz), sonst bleibt die zuerst gemeldete."""
     try:
         default_idx = sd.default.device[0]
     except Exception:  # noqa: BLE001
         default_idx = -1
     hostapis = sd.query_hostapis()
+    by_name: dict[str, dict] = {}
     for i, d in enumerate(sd.query_devices()):
         if d["max_input_channels"] <= 0:
             continue
         api = hostapis[d["hostapi"]]["name"]
         key = d["name"].strip()
-        if key in seen and api != "Windows WASAPI":
-            continue
-        seen.add(key)
-        devices.append({"index": i, "name": d["name"], "hostapi": api,
-                        "default": i == default_idx})
-    return devices
+        entry = {"index": i, "name": d["name"], "hostapi": api,
+                 "default": i == default_idx}
+        cur = by_name.get(key)
+        if cur is None:
+            by_name[key] = entry
+        elif api == "Windows WASAPI" and cur["hostapi"] != "Windows WASAPI":
+            # Gleiches physisches Geraet: Default-Markierung der
+            # verdraengten Variante mitnehmen.
+            entry["default"] = entry["default"] or cur["default"]
+            by_name[key] = entry
+    return list(by_name.values())

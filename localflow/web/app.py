@@ -17,6 +17,53 @@ EDITABLE_SETTINGS = [
 ]
 
 
+# Erwarteter Typ je Setting. Werte aus dem Request werden dahin gezwungen
+# oder verworfen - ohne diese Pruefung koennte z.B. ein String in
+# min_duration_s jedes folgende Diktat crashen (Vergleich float < str) und
+# ueberlebte via config.json sogar App-Neustarts.
+_BOOL_SETTINGS = {"ai_cleanup", "play_sounds", "duck_audio", "swallow_mouse_hotkey",
+                  "voice_commands_enabled", "live_preview", "glass_pill",
+                  "smart_spacing"}
+_INT_SETTINGS = {"beam_size", "cleanup_min_words", "tail_ms", "overlay_font_size",
+                 "max_duration_s"}
+_FLOAT_SETTINGS = {"min_duration_s", "paste_restore_delay", "cleanup_timeout_s",
+                   "duck_volume"}
+_STR_SETTINGS = {"hotkey", "hotkey2", "toggle_hotkey", "ptt_mode", "language",
+                 "ollama_model", "overlay_font", "overlay_theme"}
+
+
+def _coerce_setting(key: str, value):
+    """Wert auf den erwarteten Typ bringen. TypeError/ValueError = Wert
+    unbrauchbar, der Key wird dann ignoriert statt gespeichert."""
+    if key in _BOOL_SETTINGS:
+        if isinstance(value, bool):
+            return value
+        raise ValueError(f"{key}: bool erwartet")
+    if key in _INT_SETTINGS:
+        if isinstance(value, bool):
+            raise ValueError(f"{key}: Zahl erwartet")
+        return int(float(value))
+    if key in _FLOAT_SETTINGS:
+        if isinstance(value, bool):
+            raise ValueError(f"{key}: Zahl erwartet")
+        return float(value)
+    if key in _STR_SETTINGS:
+        if isinstance(value, str):
+            return value.strip()
+        raise ValueError(f"{key}: String erwartet")
+    if key == "audio_device":
+        # None = Windows-Default; sonst Index (int) oder Geraetename (str)
+        if value is None or (isinstance(value, int) and not isinstance(value, bool)):
+            return value
+        if isinstance(value, str):
+            s = value.strip()
+            if not s:
+                return None
+            return int(s) if s.lstrip("-").isdigit() else s
+        raise ValueError("audio_device: None/int/str erwartet")
+    return value  # voice_commands: laeuft bereits durch _sanitize_voice_commands
+
+
 def _sanitize_voice_commands(v):
     """Nur gueltige {key, phrases}-Eintraege durchlassen (Schutz vor kaputten
     oder boesartigen Werten aus dem Request)."""
@@ -206,15 +253,30 @@ def create_app(settings, db, main_app=None):
             data["voice_commands"] = _sanitize_voice_commands(data["voice_commands"])
         if "overlay_theme" in data and data["overlay_theme"] not in ("dark", "light"):
             data["overlay_theme"] = "dark"
+        ignored = []
+        to_apply = {}
         for k, v in data.items():
+            if k not in EDITABLE_SETTINGS:
+                continue
+            try:
+                v = _coerce_setting(k, v)
+            except (TypeError, ValueError):
+                log.warning("Setting %s: unbrauchbarer Wert %r ignoriert", k, v)
+                ignored.append(k)
+                continue
             # Nur echte Aenderungen anwenden - sonst wuerde z.B. jeder
             # Speichern-Klick den Hotkey-Hook grundlos neu installieren.
-            if k in EDITABLE_SETTINGS and settings.get(k) != v:
-                settings.set(k, v)
-                changed.append(k)
+            if settings.get(k) != v:
+                to_apply[k] = v
+        if to_apply:
+            settings.update(to_apply)  # EIN Save fuer alle Keys
+            changed.extend(to_apply)
         if main_app is not None and changed:
             _apply_runtime_changes(main_app, settings, set(changed))
-        return jsonify({"changed": changed})
+        resp = {"changed": changed}
+        if ignored:
+            resp["ignored"] = ignored
+        return jsonify(resp)
 
     @app.post("/api/hotkey/capture")
     def hotkey_capture():

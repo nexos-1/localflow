@@ -24,7 +24,7 @@ DEFAULTS = {
     "hotkey": "ctrl+win",          # Push-to-Talk: halten zum Aufnehmen
     # Optionaler ZWEITER Diktat-Hotkey - laeuft parallel zum ersten, gleiches
     # Verhalten (halten/Doppeltipp je nach ptt_mode). Leer = deaktiviert.
-    "hotkey2": "ctrl+win",
+    "hotkey2": "",
     # "hold" = nur halten | "both" = halten + Doppeltipp-Freisprechen |
     # "toggle" = jeder Druck startet/stoppt
     "ptt_mode": "both",
@@ -108,4 +108,13 @@ class Settings:
         if key not in DEFAULTS:
             raise KeyError(key)
         self.data[key] = value
+        self.save()
+
+    def update(self, values: dict):
+        """Mehrere Keys mit EINEM Save setzen (statt einer Datei-Schreibung
+        pro Key, wie es set() in einer Schleife taete)."""
+        for k in values:
+            if k not in DEFAULTS:
+                raise KeyError(k)
+        self.data.update(values)
         self.save()
