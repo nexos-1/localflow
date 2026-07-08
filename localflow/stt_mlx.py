@@ -84,6 +84,18 @@ class MlxTranscriber:
         """audio: float32-NumPy-Array (16 kHz mono).
         Gibt (text, detected_language, info) zurueck; text ist "" wenn nur
         Stille/Halluzination erkannt wurde. beam_size wird ignoriert (greedy)."""
+        import numpy as np
+
+        # Energie-Gate: mlx-whisper hat keinen VAD-Filter und halluziniert
+        # auf digitaler Stille (z.B. gemutetes Mikrofon) "Thank you." MIT
+        # guten Signalwerten - die logprob/no-speech-Filter greifen dann
+        # nicht (CI-verifiziert). Unter der Hoerbarkeitsschwelle gar nicht
+        # erst dekodieren. Echte leise Sprache liegt weit darueber.
+        if isinstance(audio, np.ndarray) and (
+                audio.size == 0 or float(np.abs(audio).max()) < 1e-3):
+            lang = language or (allowed_languages[0] if allowed_languages else None)
+            return "", lang, SimpleNamespace(language=lang, all_language_probs=None)
+
         detected, segs = self._transcribe_raw(audio, language, initial_prompt)
 
         # Detektierte Sprache ausserhalb der Nutzersprachen? mlx-whisper
