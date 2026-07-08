@@ -331,11 +331,16 @@ install time.
 - Required: Microphone, Accessibility (paste + event tap), Input
   Monitoring (key listening). Optional: Screen Recording (window titles).
 - TCC grants attach to the HOST binary: running from a terminal grants the
-  terminal, not LocalFlow. Ship a real `.app` bundle (py2app or briefcase)
-  with a stable bundle id, `LSUIElement = true` (menu-bar app, no Dock
-  icon). Ad-hoc signing resets TCC on every rebuild - a Developer ID
-  certificate avoids permission re-prompts during development and is
-  required for distribution (notarization).
+  terminal, not LocalFlow. That is the supported model for this project:
+  run from source (`install.sh` + venv) and grant the permissions to your
+  terminal - documented in docs/TESTING-MACOS.md.
+- **Packaging is deliberately OUT OF SCOPE** (product decision
+  2026-07-08): no `.app` bundle, no codesigning, no notarization, no
+  Apple Developer account. This is open source - people run it from
+  source like on Windows. Background for anyone who wants to build a
+  bundle themselves: py2app/briefcase with a stable bundle id and
+  `LSUIElement = true` would work, but ad-hoc signing resets TCC grants
+  on every rebuild.
 
 ---
 
@@ -437,8 +442,9 @@ Verification status - be honest about this:
   DONE via CI (3.9): mlx-whisper chosen, implemented (`stt_mlx.py`) and
   functionally tested on real Apple Silicon runners. Remaining on real
   hardware: re-measure preview latency (runner GPU is paravirtualized).
-- Package as `.app` (py2app/briefcase), TCC prompts, codesigning +
-  notarization (Apple Developer account) for a true one-click download.
+- ~~Package as `.app`, codesigning + notarization~~ OUT OF SCOPE
+  (product decision 2026-07-08): distribution is source + `install.sh`,
+  like on Windows. See 3.11.
 
 ---
 
