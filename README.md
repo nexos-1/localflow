@@ -84,6 +84,10 @@ Built as a drop-in replacement for Wispr Flow. German README: [README.de.md](REA
 installs pinned dependencies, sets up the Start Menu entry and launches the
 app. No terminal needed.
 
+New to this? The click-by-click walkthrough (including the SmartScreen
+warning and what a normal first start looks like) is in
+[docs/INSTALL.md](docs/INSTALL.md).
+
 From a terminal instead:
 
 ```powershell

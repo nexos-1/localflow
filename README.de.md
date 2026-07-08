@@ -77,6 +77,8 @@ Start/Stop/Freisprechen haben weiche Marimba-Chimes (abschaltbar).
 **`install.bat` doppelklicken** - installiert bei Bedarf Python (winget),
 richtet alles ein und startet die App. Kein Terminal noetig.
 Alternativ im Terminal: `powershell -ExecutionPolicy Bypass -File install.ps1`.
+Klick-fuer-Klick-Anleitung (inkl. SmartScreen-Warnung und was ein
+normaler erster Start ist): [docs/INSTALL.de.md](docs/INSTALL.de.md).
 
 **macOS (experimentell)**: `bash install.sh`, dann
 `.venv/bin/python run.py` - oder per Spotlight "LocalFlow": der Installer
