@@ -1,5 +1,8 @@
 # LocalFlow
 
+[![CI](https://github.com/nexos-1/localflow/actions/workflows/ci.yml/badge.svg)](https://github.com/nexos-1/localflow/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Vollstaendig lokaler Wispr-Flow-Ersatz fuer Windows. Hotkey halten, sprechen,
 loslassen - der formatierte Text landet in der aktiven App. Kein Cloud-Dienst,
 kein Abo: Whisper (STT) und Ollama (AI-Cleanup) laufen auf der eigenen Maschine.

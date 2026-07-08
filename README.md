@@ -1,5 +1,8 @@
 # LocalFlow
 
+[![CI](https://github.com/nexos-1/localflow/actions/workflows/ci.yml/badge.svg)](https://github.com/nexos-1/localflow/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **Fully local voice dictation for Windows.** Hold a hotkey, speak, release -
 your words appear as polished text in whatever app has focus. No cloud, no
 subscription: Whisper (speech-to-text) and Ollama (AI cleanup) run entirely
