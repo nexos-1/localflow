@@ -8,7 +8,9 @@ your words appear as polished text in whatever app has focus. No cloud, no
 subscription: Whisper (speech-to-text) and Ollama (AI cleanup) run entirely
 on your own machine.
 
-Built as a drop-in replacement for Wispr Flow. German README: [README.de.md](README.de.md)
+A **free, open-source alternative to [Wispr Flow](https://wisprflow.ai)** -
+built as a drop-in replacement, including one-click import of your Wispr
+dictionary and dictation history. German README: [README.de.md](README.de.md)
 
 > **Windows is first-class. macOS is experimental**: a Darwin backend exists
 > (paste, hotkeys, voice commands, sounds, Metal STT engine, AppKit overlay
@@ -237,3 +239,7 @@ extracted audio stays on your machine and is git-ignored.
 
 [MIT](LICENSE). Dependencies remain under their own licenses (note:
 `pystray` is LGPL-3.0, used as an ordinary pip dependency).
+
+LocalFlow is not affiliated with or endorsed by Wispr AI. "Wispr Flow"
+is a trademark of its respective owner and is referenced here solely to
+describe compatibility.

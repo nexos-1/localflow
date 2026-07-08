@@ -7,6 +7,10 @@ Vollstaendig lokaler Wispr-Flow-Ersatz fuer Windows. Hotkey halten, sprechen,
 loslassen - der formatierte Text landet in der aktiven App. Kein Cloud-Dienst,
 kein Abo: Whisper (STT) und Ollama (AI-Cleanup) laufen auf der eigenen Maschine.
 
+Eine **kostenlose Open-Source-Alternative zu [Wispr Flow](https://wisprflow.ai)** -
+als Drop-in-Ersatz gebaut, inklusive Ein-Klick-Import von Wispr-Woerterbuch
+und Diktat-History. English README: [README.md](README.md)
+
 > **Windows ist erstklassig unterstuetzt, macOS experimentell**: Ein
 > Darwin-Backend existiert (Paste, Hotkeys, Sprachbefehle, Sounds,
 > Metal-STT-Engine, AppKit-Overlay-Pill) und laeuft in der CI auf echten
@@ -237,3 +241,8 @@ der Maschine und sind git-ignoriert.
 
 [MIT](LICENSE). Abhaengigkeiten stehen unter ihren eigenen Lizenzen
 (Hinweis: `pystray` ist LGPL-3.0, wird als normale pip-Dependency genutzt).
+
+LocalFlow steht in keiner Verbindung zu Wispr AI und wird von Wispr AI
+weder unterstuetzt noch empfohlen. "Wispr Flow" ist eine Marke des
+jeweiligen Inhabers und wird hier ausschliesslich zur Beschreibung der
+Kompatibilitaet genannt.
