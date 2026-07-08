@@ -5,9 +5,9 @@ Status (siehe PORTING.md, Phase 3):
 - inject (NSPasteboard + Cmd+V via CGEvent), hotkey (pynput), sounds
   (afplay), autostart (LaunchAgent), single instance (flock): Code steht,
   laeuft aber erst nach Verifikation auf einem echten Mac / CI-Runner.
-- Overlay: bewusst ein No-op-Platzhalter (NullOverlay) - die animierte
-  Pill braucht einen AppKit-NSPanel-Host (Phase 3b, nur auf Hardware
-  sinnvoll entwickelbar). Feedback kommt solange ueber die Sounds.
+- Overlay: animierte Pill als AppKit-NSPanel (Phase 3b), Choreografie
+  geteilt mit Windows (overlay_model.py); haengt am NSApp-Loop des
+  Tray-Icons. Ohne pyobjc/WindowServer: NullOverlay-Fallback (Sounds).
 - Ducking: No-op (macOS hat kein oeffentliches Per-App-Volume-API);
   did_mute_sessions=0 deaktiviert den Head-Trim automatisch.
 
@@ -30,7 +30,7 @@ def make_backends() -> SimpleNamespace:
     from . import integration as _integration
     from . import sounds as _sounds
     from .ducking import NoopDucker
-    from .overlay import NullOverlay
+    from .overlay import make_overlay as _make_overlay
 
     return SimpleNamespace(
         make_ptt=lambda combo, controller, swallow_mouse=False: _hotkey.PynputPtt(
@@ -40,7 +40,7 @@ def make_backends() -> SimpleNamespace:
         capture_combo=_hotkey.capture_combo,
         inject=_inject,
         make_ducker=lambda duck_volume: NoopDucker(duck_volume=duck_volume),
-        make_overlay=NullOverlay,
+        make_overlay=_make_overlay,
         sounds=_sounds,
         autostart=SimpleNamespace(is_enabled=_autostart.is_enabled,
                                   set_enabled=_autostart.set_enabled),

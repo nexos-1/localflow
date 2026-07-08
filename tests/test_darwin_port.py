@@ -69,18 +69,30 @@ for attr in ("make_ptt", "add_hotkey", "remove_hotkey", "capture_combo",
     assert attr + "=" in src.replace(" ", ""), f"Backend-Attribut fehlt: {attr}"
 print("Backend-Flaeche vollstaendig OK")
 
-# 7) No-op-Vertraege: Ducker deaktiviert Head-Trim, Overlay ist API-komplett
+# 7) Overlay-Vertrag: JEDE overlay-Methode, die main.py wirklich aufruft,
+#    muss auf NullOverlay UND DarwinOverlay existieren (ein fehlendes
+#    set_theme war genau so ein Bug). Der Soll-Zustand kommt aus den echten
+#    Call-Sites in main.py, nicht aus einer Hardcode-Liste.
+import re  # noqa: E402
+
 from localflow.platform.darwin.ducking import NoopDucker  # noqa: E402
-from localflow.platform.darwin.overlay import NullOverlay  # noqa: E402
+from localflow.platform.darwin.overlay import DarwinOverlay, NullOverlay  # noqa: E402
 
 d = NoopDucker(duck_volume=0.5)
 assert d.did_mute_sessions == 0 and d.duck_volume == 0.5
 d.duck(); d.restore()
-o = NullOverlay()
-for m in ("start", "set_state", "set_level", "set_text", "set_glass", "set_style"):
-    assert callable(getattr(o, m)), m
-o.set_state("recording"); o.set_level(0.5); o.set_text("x")
-o.set_glass(True); o.set_style("Arial", 12)
-print("No-op-Vertraege OK")
+
+main_src = open(os.path.join(os.path.dirname(__file__), "..",
+                             "localflow", "main.py"), encoding="utf-8").read()
+called = set(re.findall(r"self\.overlay\.(\w+)\(", main_src))
+assert called >= {"start", "set_state", "set_text", "set_theme"}, called
+for cls in (NullOverlay, DarwinOverlay):
+    o = cls()
+    for m in sorted(called | {"set_level", "set_glass", "set_style"}):
+        assert callable(getattr(o, m, None)), f"{cls.__name__}.{m} fehlt"
+    # Queue-/No-op-Aufrufe muessen ueberall ohne AppKit funktionieren
+    o.set_state("recording"); o.set_level(0.5); o.set_text("x")
+    o.set_glass(True); o.set_style("Arial", 12); o.set_theme("light")
+print(f"Overlay-Vertrag OK ({len(called)} Call-Sites aus main.py gedeckt)")
 
 print("\nDARWIN PORT TESTS PASSED")

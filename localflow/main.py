@@ -464,7 +464,8 @@ class LocalFlowApp:
             pystray.MenuItem("Dashboard öffnen", open_dashboard, default=True),
             pystray.MenuItem("Pausieren", toggle_pause,
                              checked=lambda item: self._user_paused),
-            pystray.MenuItem("Mit Windows starten", toggle_autostart,
+            pystray.MenuItem("Mit Windows starten" if sys.platform == "win32"
+                             else "Beim Anmelden starten", toggle_autostart,
                              checked=lambda item: is_autostart_enabled()),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(f"LocalFlow v{__version__}", None, enabled=False),

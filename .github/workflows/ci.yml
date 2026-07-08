@@ -52,7 +52,7 @@ jobs:
           print('darwin-Backend konstruiert:', sorted(vars(b)))
           # Konstruktion der Kernobjekte (headless moeglich):
           d = b.make_ducker(duck_volume=0.0); d.duck(); d.restore()
-          o = b.make_overlay(); o.set_state('recording'); o.set_text('ci')
+          o = b.make_overlay(); o.set_state('recording'); o.set_text('ci'); o.set_theme('light')
           from localflow.platform.darwin import inject
           assert inject.PASTE_OK == 'ok'
           # Pasteboard-Roundtrip (echtes AppKit, kein UI noetig):
@@ -60,3 +60,5 @@ jobs:
           assert inject._get_clipboard_text() == 'localflow-ci'
           print('NSPasteboard-Roundtrip OK')
           "
+      - name: AppKit-Overlay (NSPanel-Pill, Runloop von Hand gepumpt)
+        run: python tests/test_darwin_overlay_ci.py
