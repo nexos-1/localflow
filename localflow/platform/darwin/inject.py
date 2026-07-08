@@ -25,6 +25,11 @@ PASTE_OK = "ok"
 PASTE_CLIPBOARD_ONLY = "clipboard_only"
 PASTE_FAILED = "failed"
 
+# main.py prueft die aktive App gegen diese Liste, BEVOR es smart_spacing an
+# paste_text gibt - das Attribut muss also existieren, obwohl Smart Spacing
+# auf darwin noch ohne Wirkung ist (Caret-Sonde: Phase 3b, PORTING.md).
+SMART_SPACING_SKIP_APPS = frozenset()
+
 _VK_V = 9
 _COMMAND_VK = {
     "enter": 36,

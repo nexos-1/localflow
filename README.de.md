@@ -82,6 +82,8 @@ Audio-Ducking. Overlay-Pill und Metal-STT-Engine (mlx-whisper) sind
 enthalten und werden in der CI auf echten Apple-Silicon-Runnern
 funktional getestet; Intel-Macs fallen auf CPU-Whisper zurueck, das zum
 Diktieren zu langsam ist (gemessen ~20 s fuer 16 s Audio). Siehe PORTING.md.
+Test auf echter Hardware: Anleitung in
+[docs/TESTING-MACOS.md](docs/TESTING-MACOS.md).
 
 ## Deinstallation
 

@@ -95,4 +95,15 @@ for cls in (NullOverlay, DarwinOverlay):
     o.set_glass(True); o.set_style("Arial", 12); o.set_theme("light")
 print(f"Overlay-Vertrag OK ({len(called)} Call-Sites aus main.py gedeckt)")
 
+# 8) Injector-Vertrag genauso: jedes inj.<attr>, das main.py anfasst, muss
+#    im darwin-Modul existieren (ein fehlendes SMART_SPACING_SKIP_APPS
+#    haette JEDES Diktat auf dem Mac crashen lassen).
+from localflow.platform.darwin import inject as dinj  # noqa: E402
+
+inj_attrs = set(re.findall(r"\binj\.(\w+)", main_src))
+assert "SMART_SPACING_SKIP_APPS" in inj_attrs
+for attr in sorted(inj_attrs):
+    assert hasattr(dinj, attr), f"darwin.inject.{attr} fehlt (main.py nutzt es)"
+print(f"Injector-Vertrag OK ({len(inj_attrs)} Attribute aus main.py gedeckt)")
+
 print("\nDARWIN PORT TESTS PASSED")

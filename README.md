@@ -106,7 +106,9 @@ used interactively on real hardware and has no audio ducking. The overlay
 pill and the Metal STT engine (mlx-whisper) are included and functionally
 tested in CI on real Apple Silicon runners; Intel Macs fall back to
 CPU-only Whisper, which is too slow for dictation (measured ~20 s for
-16 s of audio). Status: [PORTING.md](PORTING.md).
+16 s of audio). Status: [PORTING.md](PORTING.md). Testing on real
+hardware? Follow the tester guide:
+[docs/TESTING-MACOS.md](docs/TESTING-MACOS.md) (German).
 
 ## Usage
 

@@ -431,6 +431,8 @@ Verification status - be honest about this:
   metrics, hover feel) still needs real eyes.
 - Manual e2e matrix: paste into TextEdit, browser, terminal, Slack;
   hold/double-tap/toggle modes; mouse-button hotkeys; dashboard capture.
+  Tester guide (German, checklist + report format):
+  [docs/TESTING-MACOS.md](docs/TESTING-MACOS.md).
 - ~~Benchmark STT on Apple Silicon; decide on mlx/whisper.cpp backend~~
   DONE via CI (3.9): mlx-whisper chosen, implemented (`stt_mlx.py`) and
   functionally tested on real Apple Silicon runners. Remaining on real
