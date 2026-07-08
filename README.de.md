@@ -5,9 +5,10 @@ loslassen - der formatierte Text landet in der aktiven App. Kein Cloud-Dienst,
 kein Abo: Whisper (STT) und Ollama (AI-Cleanup) laufen auf der eigenen Maschine.
 
 > **Windows ist erstklassig unterstuetzt, macOS experimentell**: Ein
-> Darwin-Backend existiert (Paste, Hotkeys, Sprachbefehle, Sounds), ist aber
-> auf echter Hardware ungetestet und hat noch kein Overlay - Status und Plan
-> in [PORTING.md](PORTING.md).
+> Darwin-Backend existiert (Paste, Hotkeys, Sprachbefehle, Sounds); die
+> portablen Teile laufen in der CI auf echten macOS-Runnern, interaktiv auf
+> einem Mac wurde die App aber noch nie benutzt, und ein Overlay fehlt -
+> Status und Plan in [PORTING.md](PORTING.md).
 
 ## Bedienung
 
@@ -25,12 +26,12 @@ Einstellungen aenderbar - inkl. "⌨ Aufnehmen"-Button, der die naechste
 gedrueckte Kombination uebernimmt. Auch die Maus-Seitentasten funktionieren
 als Diktier-Taste ("maus4"/"maus5", einzeln oder kombiniert wie
 "ctrl+maus5"), und ein **optionaler zweiter Diktat-Hotkey** laeuft parallel
-(z.B. Maus5 UND Ctrl+Win). Standardmaessig wird die Maustaste beim
-Diktieren verschluckt (so ersetzt ein Diktat markierten Text, statt den
-Cursor zu versetzen); wer die Taste parallel weiterbenutzen will
-(Browser-Vor/Zurueck), deaktiviert "Maus-Hotkey verschluckt den Klick" in
-den Einstellungen. Sprache wird automatisch erkannt (Deutsch/Englisch
-gemischt kein Problem).
+(z.B. Maus5 UND Ctrl+Win). Standardmaessig behaelt die Maustaste dabei ihre
+normale Funktion (Browser-Vor/Zurueck laeuft parallel weiter); wer sie
+exklusiv fuers Diktieren will - z.B. damit ein Diktat markierten Text
+ersetzt, statt den Cursor zu versetzen - aktiviert "Maus-Hotkey verschluckt
+den Klick" in den Einstellungen. Sprache wird automatisch erkannt
+(Deutsch/Englisch gemischt kein Problem).
 
 **Sprachbefehle:** Ein Diktat, das auf "press enter", "press backspace",
 "press escape" oder "press delete" endet, tippt die Phrase nicht, sondern
@@ -76,8 +77,10 @@ Alternativ im Terminal: `powershell -ExecutionPolicy Bypass -File install.ps1`.
 
 **macOS (experimentell)**: `bash install.sh`, dann
 `.venv/bin/python run.py`. Beim ersten Start Mikrofon- und
-Bedienungshilfen-Permission erteilen. Ungetestet auf echter Hardware,
-noch kein Overlay (Feedback ueber Sounds), kein Audio-Ducking - PORTING.md.
+Bedienungshilfen-Permission erteilen. Interaktiv ungetestet, noch kein
+Overlay (Feedback ueber Sounds), kein Audio-Ducking. Achtung: Whisper auf
+CPU ist auf Apple Silicon zu langsam zum Diktieren (gemessen ~20 s fuer
+16 s Audio) - eine Metal-Engine ist noetig und geplant, siehe PORTING.md.
 
 ## Deinstallation
 
@@ -124,23 +127,25 @@ Das Mikrofon wird NUR waehrend einer Aufnahme geoeffnet (Windows-Anzeige
 
 ```
 localflow/
-  main.py      Tray-App, Orchestrierung, Autostart (HKCU Run-Key), Live-Preview-Loop
-  hotkey.py    Diktat-Zustandsmaschine + Low-Level-Hooks (Tastatur/Maus)
-  audio.py     Mikrofon 16 kHz mono (sounddevice), adaptiver Pegelmesser
-  stt.py       faster-whisper large-v3-turbo, CUDA float16, Fallback CPU
-  cleanup.py   Ollama gemma3:4b, Prompt kalibriert auf Light-Formatting
-  commands.py  Sprachbefehle am Diktat-Ende ("press enter" -> Taste)
-  pipeline.py  STT -> Sprachbefehle -> Cleanup -> Woerterbuch/Snippets -> History
-  inject.py    Clipboard setzen -> Ctrl+V -> Clipboard restaurieren,
-               Paste nur ins beim Diktat fokussierte Fenster (target_hwnd),
-               Tasten-Sender fuer Sprachbefehle
-  db.py        SQLite: history + dictionary
-  settings.py  JSON-Config
-  overlay.py   Animierte Overlay-Pill (Tk): Waveform, Live-Transkript,
-               Hover-Ausklappen, Glas-Optik
-  sounds.py    Start/Stop-Chimes (generiert)
-  importer.py  Import aus Wisprs flow.sqlite (Dashboard-Button)
-  web/         Flask-Dashboard (History, Woerterbuch, Settings, Import)
+  main.py        Tray-App, Orchestrierung, Autostart (HKCU Run-Key), Live-Preview-Loop
+  controller.py  plattformneutrale Diktat-Zustandsmaschine (Halten/Doppeltipp/Toggle)
+  hotkey.py      Win32-Low-Level-Hooks (Tastatur/Maus), fuettern den Controller
+  audio.py       Mikrofon 16 kHz mono (sounddevice), adaptiver Pegelmesser
+  stt.py         faster-whisper large-v3-turbo, CUDA float16, Fallback CPU
+  cleanup.py     Ollama gemma3:4b, Prompt kalibriert auf Light-Formatting
+  commands.py    Sprachbefehle am Diktat-Ende ("press enter" -> Taste)
+  pipeline.py    STT -> Sprachbefehle -> Cleanup -> Woerterbuch/Snippets -> History
+  inject.py      Clipboard setzen -> Ctrl+V -> Clipboard restaurieren,
+                 Paste nur ins beim Diktat fokussierte Fenster (target_hwnd),
+                 Tasten-Sender fuer Sprachbefehle
+  db.py          SQLite: history + dictionary
+  settings.py    JSON-Config
+  overlay.py     Animierte Overlay-Pill (Tk): Waveform, Live-Transkript,
+                 Hover-Ausklappen, Glas-Optik
+  sounds.py      Start/Stop-Chimes (generiert)
+  importer.py    Import aus Wisprs flow.sqlite (Dashboard-Button)
+  web/           Flask-Dashboard (History, Woerterbuch, Settings, Import)
+  platform/      Backend-Vertraege + win32- und darwin-Implementierung
 ```
 
 Daten: `<projekt>\data\` (config.json, localflow.sqlite, logs\, sounds\) -
@@ -168,6 +173,9 @@ Benchmark auf 20 echten Diktaten (eigene Stimme, Focusrite):
 - Paste ist an das Fenster gebunden, in dem diktiert wurde; ist es nicht
   fokussierbar, bleibt der Text im Clipboard + Tray-Notification.
 - Clipboard-Erhaltung fuer Text, Bilder (CF_DIB) und Datei-Kopien (CF_HDROP).
+- Clipboard-Hygiene: transiente Eintraege (Diktat, Smart-Spacing-Sonde,
+  Restore) sind vom Zwischenablage-Verlauf (Win+V) und Cloud-Sync
+  ausgenommen; ein vorher leeres Clipboard ist nach dem Paste wieder leer.
 - Nachlauf 150 ms (`tail_ms`): die letzte Silbe wird nicht abgeschnitten.
 - Ollama-Healthcheck mit Autostart (`ollama serve`) und
   Doppelstart-Schutz; Cleanup-Ausfall degradiert zu Rohtext statt zu blockieren.
@@ -187,11 +195,15 @@ Benchmark auf 20 echten Diktaten (eigene Stimme, Focusrite):
 .venv\Scripts\python.exe tests\test_commands.py        # Sprachbefehl-Erkennung
 .venv\Scripts\python.exe tests\test_cleanup_start.py   # Ollama-Doppelstart-Schutz
 .venv\Scripts\python.exe tests\test_levelmeter.py      # adaptiver Pegelmesser
+.venv\Scripts\python.exe tests\test_smart_spacing.py   # Smart-Spacing-Entscheidungslogik
+.venv\Scripts\python.exe tests\test_darwin_port.py     # macOS-Backend (portable Pruefungen)
 .venv\Scripts\python.exe tests\test_clipboard.py       # Clipboard-Erhaltung (Text + Dateien)
 .venv\Scripts\python.exe tests\test_e2e_inject.py      # E2E in echtes Notepad (App muss laufen)
 .venv\Scripts\python.exe tests\test_e2e_realvoice.py   # E2E mit echter Stimme (App muss laufen)
 ```
 
+Die hardwarefreien Suiten laufen zusaetzlich in der CI auf Windows und
+echten macOS-Runnern ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
 Die `test_e2e_*`-Tests tippen und pasten in echte Fenster - vor dem
 Ausfuehren lesen. `tests\extract_real_audio.py` baut einen persoenlichen
 STT-Benchmark aus einer lokalen Wispr-DB; die extrahierten WAVs bleiben auf

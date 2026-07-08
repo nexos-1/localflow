@@ -24,3 +24,9 @@ psutil==7.2.2
 pynput==1.8.2 ; sys_platform == "darwin"
 pyobjc-framework-Cocoa==12.2.1 ; sys_platform == "darwin"
 pyobjc-framework-Quartz==12.2.1 ; sys_platform == "darwin"
+# Metal-STT-Engine fuer Apple Silicon (stt_mlx.py; CPU-Whisper ist auf dem
+# Mac unbenutzbar langsam, PORTING.md 3.9). mlx 0.32.0 (2026-07-07) ist
+# juenger als 14 Tage -> gepinnt auf 0.31.2 (2026-04-22);
+# mlx-whisper 0.4.3 released 2025-08-29.
+mlx==0.31.2 ; sys_platform == "darwin" and platform_machine == "arm64"
+mlx-whisper==0.4.3 ; sys_platform == "darwin" and platform_machine == "arm64"

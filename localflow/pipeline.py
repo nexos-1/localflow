@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from .cleanup import Cleaner
 from .db import Database
 from .settings import Settings
-from .stt import Transcriber
+from .stt_factory import make_transcriber
 
 log = logging.getLogger("localflow.pipeline")
 
@@ -35,7 +35,9 @@ class Pipeline:
     def __init__(self, settings: Settings, db: Database):
         self.settings = settings
         self.db = db
-        self.transcriber: Transcriber | None = None
+        # Engine haengt von der Plattform ab (stt_factory): faster-whisper
+        # auf Windows (CUDA/CPU), mlx-whisper (Metal) auf Apple Silicon.
+        self.transcriber = None
         self.cleaner: Cleaner | None = None
         # Serialisiert die GPU-Inferenz: zwei parallele Diktate wuerden sonst
         # gleichzeitig auf der GPU laufen (kann selbst erst das CUDA-OOM
@@ -44,7 +46,7 @@ class Pipeline:
 
     def load(self):
         """Modelle laden (blockiert; beim App-Start im Hintergrund aufrufen)."""
-        self.transcriber = Transcriber(self.settings.get("whisper_model"))
+        self.transcriber = make_transcriber(self.settings.get("whisper_model"))
         self.cleaner = Cleaner(
             model=self.settings.get("ollama_model"),
             base_url=self.settings.get("ollama_url"),
@@ -91,8 +93,8 @@ class Pipeline:
                 if self.transcriber.device != "cuda":
                     raise
                 log.warning("CUDA-Transkription fehlgeschlagen (%s) - lade CPU-Fallback", e)
-                self.transcriber = Transcriber(self.settings.get("whisper_model"),
-                                               device="cpu")
+                self.transcriber = make_transcriber(self.settings.get("whisper_model"),
+                                                    device="cpu")
                 return self.transcriber.transcribe(audio, **kwargs)
 
     def transcribe_preview(self, audio) -> str:

@@ -20,3 +20,5 @@ jobs:
       - run: pip install mlx==0.31.2 mlx-whisper==0.4.3 numpy==2.4.6
       - name: mlx-whisper-Latenz auf Apple Silicon messen
         run: python tests/bench_mlx_ci.py
+      - name: Funktionaler Test der mlx-Engine (stt_mlx + Factory + Guards)
+        run: python tests/test_stt_mlx_ci.py

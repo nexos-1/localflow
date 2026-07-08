@@ -291,6 +291,23 @@ install time.
   `pywhispercpp` (whisper.cpp, Metal) - or fall back to a much smaller
   model at a quality cost. The hallucination filters only need segment
   logprob/no-speech fields - verify the chosen engine exposes them.
+- **mlx-whisper MEASURED 2026-07-08** (same runner class, `gh workflow run
+  mlx-bench`, tests/bench_mlx_ci.py): Metal IS exposed on GitHub runners
+  ("Apple Paravirtual device", 7 GB). `large-v3-turbo` warm full pass:
+  **3.5 s for 16.2 s audio** (5.7x faster than CPU); preview-style passes
+  flat at 2.9-3.4 s regardless of buffer length. The runner GPU is
+  paravirtualized, so treat these as a LOWER bound - real M-series
+  hardware is substantially faster. Good enough for the final dictation
+  pass; the live preview interval needs re-measuring on real hardware.
+- **IMPLEMENTED**: `stt_mlx.MlxTranscriber` (Metal engine, same interface),
+  `stt_factory.make_transcriber` (auto-selects mlx on darwin, faster-whisper
+  elsewhere; explicit device pins force faster-whisper), shared quality
+  filters extracted to `stt_quality.py` (mlx segments expose
+  avg_logprob/no_speech_prob, so hallucination + prompt-echo guards work
+  identically). Functional CI test on real Apple Silicon:
+  tests/test_stt_mlx_ci.py (mlx-bench workflow). Notes: no beam search
+  (greedy), no VAD, language restriction falls back to first allowed
+  language (mlx exposes no probability list).
 
 ### 3.10 Settings, importer, dashboard
 - Per-platform defaults: `overlay_font` "Segoe UI" -> system font; hotkey
@@ -319,8 +336,10 @@ install time.
 2. TCC friction: permissions bound to the bundle; rebuilds with changing
    signatures re-prompt; dev runs from the venv behave differently than
    the bundled app.
-3. STT latency on CPU unknown; the mlx/whisper.cpp escape hatch changes
-   model caches and possibly quality filters. Needs measurement.
+3. ~~STT latency on CPU unknown~~ RESOLVED: CPU measured unusable, mlx
+   engine implemented and CI-tested (3.9). Remaining: preview latency on
+   real (unvirtualized) M-series hardware; mlx model cache lives under
+   `~/.cache/huggingface` with different repo names (uninstall.sh hint).
 4. Ducking cannot be ported 1:1 - product decision required (no-op vs.
    system volume vs. player pause).
 5. Event swallowing (`swallow_mouse`) depends on active-tap semantics and
@@ -398,7 +417,10 @@ Verification status - be honest about this:
 - NSPanel overlay + tray on one AppKit main loop (section 3.3).
 - Manual e2e matrix: paste into TextEdit, browser, terminal, Slack;
   hold/double-tap/toggle modes; mouse-button hotkeys; dashboard capture.
-- Benchmark STT on Apple Silicon; decide on mlx/whisper.cpp backend.
+- ~~Benchmark STT on Apple Silicon; decide on mlx/whisper.cpp backend~~
+  DONE via CI (3.9): mlx-whisper chosen, implemented (`stt_mlx.py`) and
+  functionally tested on real Apple Silicon runners. Remaining on real
+  hardware: re-measure preview latency (runner GPU is paravirtualized).
 - Package as `.app` (py2app/briefcase), TCC prompts, codesigning +
   notarization (Apple Developer account) for a true one-click download.
 

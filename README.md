@@ -8,8 +8,10 @@ on your own machine.
 Built as a drop-in replacement for Wispr Flow. German README: [README.de.md](README.de.md)
 
 > **Windows is first-class. macOS is experimental**: a Darwin backend exists
-> (paste, hotkeys, voice commands, sounds) but is untested on real hardware
-> and has no overlay yet - see [PORTING.md](PORTING.md) for status and plan.
+> (paste, hotkeys, voice commands, sounds) and its portable pieces are
+> smoke-tested in CI on real macOS runners, but the app has never been used
+> interactively on a Mac and has no overlay yet - see [PORTING.md](PORTING.md)
+> for status and plan.
 
 ## Features
 
@@ -42,10 +44,15 @@ Built as a drop-in replacement for Wispr Flow. German README: [README.de.md](REA
 - **Custom sounds**: replace the start/stop/hands-free chimes with your own
   WAVs (drop them into `data/sounds/` and list their names in
   `custom.txt` - they survive app updates)
+- **Clipboard etiquette**: your previous clipboard content (text, image or
+  copied files) is restored after each paste, and LocalFlow's transient
+  entries are excluded from the Win+V clipboard history and cloud clipboard
 - **Dashboard** (localhost): history with day grouping and search,
   dictionary (boost words + text snippets), settings, stats including time
   saved vs. typing - shows a clear banner when the app is not running and
   reconnects automatically
+- **One-click Wispr Flow import**: dictionary and dictation history are
+  pulled straight from the locally installed Wispr app (dashboard button)
 - **Quality guards**: Whisper hallucination filtering (silence/noise),
   prompt-echo filtering, language restriction
 - **Privacy**: microphone stream only open while recording; logs contain no
@@ -77,8 +84,8 @@ app. No terminal needed.
 From a terminal instead:
 
 ```powershell
-git clone <repo-url>
-cd <repo>
+git clone https://github.com/nexos-1/localflow.git
+cd localflow
 powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
@@ -94,9 +101,11 @@ bash install.sh
 ```
 
 Grant Microphone + Accessibility (and if asked, Input Monitoring)
-permissions on first start. Expect rough edges: the port is untested on
-real hardware, there is no overlay yet (audio feedback only), and no audio
-ducking. Status: [PORTING.md](PORTING.md).
+permissions on first start. Expect rough edges: the port has never been
+used interactively on real hardware, there is no overlay yet (audio
+feedback only), and no audio ducking. Also note: CPU-only Whisper is too
+slow for dictation on Apple Silicon (measured ~20 s for 16 s of audio); a
+Metal-backed engine is required and planned. Status: [PORTING.md](PORTING.md).
 
 ## Usage
 
@@ -114,11 +123,11 @@ trigger words, live preview, microphone, cleanup model, audio mute, widget
 design (font, size, glass look) and autostart are all configurable in the
 dashboard; changes apply immediately.
 
-A note on mouse-button hotkeys: by default the side button is swallowed
-while dictating (so pressing it over selected text replaces the selection
-instead of moving the caret). If you prefer the button to keep its normal
-function in parallel (e.g. browser back/forward), disable
-"swallow mouse hotkey" in the settings.
+A note on mouse-button hotkeys: by default the side button keeps its normal
+function in parallel (e.g. browser back/forward) while also triggering
+dictation. Enable "swallow mouse hotkey" in the settings to make the button
+exclusive to dictation - then pressing it over selected text replaces the
+selection instead of moving the caret.
 
 ## Uninstall
 
@@ -152,19 +161,22 @@ dictated text itself.
 
 ```
 localflow/
-  main.py      tray app, orchestration, autostart, live-preview loop
-  hotkey.py    dictation state machine + keyboard/mouse low-level hooks
-  audio.py     mic capture (16 kHz mono), adaptive level meter
-  stt.py       faster-whisper + quality guards
-  cleanup.py   Ollama prompt calibrated for light-touch formatting
-  commands.py  trailing voice commands ("press enter" -> key press)
-  pipeline.py  STT -> voice commands -> cleanup -> dictionary -> history
-  inject.py    clipboard paste with multi-format preservation, key sender
-  ducking.py   system audio mute worker (fast fade, crash recovery)
-  overlay.py   animated overlay pill (tkinter): waveform, live transcript,
-               hover expand, glass look
-  db.py        SQLite history + dictionary
-  web/         Flask dashboard
+  main.py        tray app, orchestration, autostart, live-preview loop
+  controller.py  platform-neutral dictation state machine (hold/double-tap/toggle)
+  hotkey.py      Win32 keyboard/mouse low-level hooks feeding the controller
+  audio.py       mic capture (16 kHz mono), adaptive level meter
+  stt.py         faster-whisper + quality guards
+  cleanup.py     Ollama prompt calibrated for light-touch formatting
+  commands.py    trailing voice commands ("press enter" -> key press)
+  pipeline.py    STT -> voice commands -> cleanup -> dictionary -> history
+  inject.py      clipboard paste with multi-format preservation, key sender
+  ducking.py     system audio mute worker (fast fade, crash recovery)
+  overlay.py     animated overlay pill (tkinter): waveform, live transcript,
+                 hover expand, glass look
+  db.py          SQLite history + dictionary
+  importer.py    one-click import from Wispr Flow's flow.sqlite
+  web/           Flask dashboard
+  platform/      backend contracts + the win32 and darwin implementations
 ```
 
 More detail in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -181,12 +193,27 @@ Run individual suites from `tests/` with the venv Python, e.g.:
 .venv\Scripts\python.exe tests\test_commands.py         # voice command parsing
 .venv\Scripts\python.exe tests\test_cleanup_start.py    # Ollama no-double-spawn
 .venv\Scripts\python.exe tests\test_levelmeter.py       # adaptive level meter
+.venv\Scripts\python.exe tests\test_smart_spacing.py    # smart-spacing decision logic
+.venv\Scripts\python.exe tests\test_clipboard.py        # clipboard preservation
+.venv\Scripts\python.exe tests\test_darwin_port.py      # macOS backend (portable checks)
 ```
+
+The hardware-free suites also run in CI on Windows and on real macOS
+runners ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
 
 `tests/test_e2e_*.py` drive the running app end-to-end (they type and paste
 into real windows - read them before running). `tests/extract_real_audio.py`
 can build a personal STT benchmark from a local Wispr Flow database; the
 extracted audio stays on your machine and is git-ignored.
+
+## Known limitations
+
+- Very short dictations (under ~1 s) are inherently hard for Whisper; the
+  detected language is always right, but single words can come out wrong.
+- The AI-cleanup prompt is calibrated for German and English; other
+  languages transcribe fine but may be cleaned less reliably.
+- No meeting notetaker, no polish-selected-text - deliberately out of scope
+  (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
 
 ## License
 

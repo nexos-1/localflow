@@ -45,6 +45,16 @@ def _session_key(s) -> str:
     return f"pid:{s.Process.pid if s.Process else '?'}"
 
 
+def _proc_name(s) -> str:
+    """Prozessname (lowercase) der Session - fuer das Wiederfinden, wenn die
+    Session-Instanz stirbt (Windows persistiert Pegel pro App, eine tote
+    Instanz liesse die App sonst dauerhaft auf duck_volume)."""
+    try:
+        return (s.Process.name() or "").lower() if s.Process else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 class AudioDucker:
     def __init__(self, duck_volume: float = 0.0):
         self.duck_volume = max(0.0, min(1.0, duck_volume or 0.0))
@@ -75,7 +85,7 @@ class AudioDucker:
         except OSError:
             pass
         self._restore_leftovers()
-        saved: dict[str, tuple] = {}   # key -> (vol_iface, original)
+        saved: dict[str, tuple] = {}   # key -> (vol_iface, original, prozessname)
 
         while True:
             try:
@@ -85,10 +95,10 @@ class AudioDucker:
 
             if cmd == "duck":
                 t0 = time.monotonic()
-                for key, vol, orig in self._collect(exclude=saved):
-                    saved[key] = (vol, orig)
+                for key, vol, orig, pname in self._collect(exclude=saved):
+                    saved[key] = (vol, orig, pname)
                 self._write_state(saved)
-                self._fade(list(saved.values()), down=True,
+                self._fade([(v, o) for v, o, _ in saved.values()], down=True,
                            steps=FADE_DOWN_STEPS, dur=FADE_DOWN_S)
                 self._muted = True
                 self.is_muted = True
@@ -99,16 +109,23 @@ class AudioDucker:
                              (self.mute_complete_ts - t0) * 1000, len(saved))
 
             elif cmd == "restore" and self._muted:
-                completed = self._fade(list(saved.values()), down=False,
+                completed = self._fade([(v, o) for v, o, _ in saved.values()],
+                                       down=False,
                                        steps=FADE_UP_STEPS, dur=FADE_UP_S,
                                        abort_on_cmd=True)
                 if completed:
-                    for vol, orig in saved.values():
+                    dead = []
+                    for vol, orig, pname in saved.values():
                         try:
                             vol.SetMasterVolume(orig, None)
-                        except Exception:  # noqa: BLE001
-                            pass
-                    log.info("Audio restauriert (%d Sessions)", len(saved))
+                        except Exception as e:  # noqa: BLE001
+                            # NICHT still schlucken: eine tote Session liesse
+                            # die App dauerhaft leise (Windows merkt sich den
+                            # Pegel pro App) - unten via Prozessname heilen.
+                            dead.append((orig, pname, e))
+                    healed = self._heal_dead_sessions(dead) if dead else 0
+                    log.info("Audio restauriert (%d Sessions%s)", len(saved),
+                             f", {len(dead)} tot, {healed} geheilt" if dead else "")
                     saved = {}
                     self._muted = False
                     self.is_muted = False
@@ -119,8 +136,8 @@ class AudioDucker:
             elif cmd is None and self._muted:
                 # Waechter: mittendrin startende Sessions sofort muten
                 fresh = self._collect(exclude=saved)
-                for key, vol, orig in fresh:
-                    saved[key] = (vol, orig)
+                for key, vol, orig, pname in fresh:
+                    saved[key] = (vol, orig, pname)
                     try:
                         vol.SetMasterVolume(orig * self.duck_volume, None)
                     except Exception:  # noqa: BLE001

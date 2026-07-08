@@ -11,9 +11,10 @@ Tuning basiert auf Benchmark mit 20 echten Diktaten (tests/bench_stt_real.py):
 
 import logging
 import os
-import re
 import sys
 import time
+
+from .stt_quality import drop_low_quality, strip_prompt_echo
 
 log = logging.getLogger("localflow.stt")
 
@@ -40,27 +41,7 @@ _add_nvidia_dll_dirs()
 
 from faster_whisper import WhisperModel  # noqa: E402
 
-# Bekannte Whisper-Halluzinationen auf Stille (nur verworfen, wenn zusaetzlich
-# die Qualitaetssignale schlecht sind - siehe _is_hallucination)
-HALLUCINATION_PHRASES = {
-    "vielen dank", "danke", "thank you", "thanks for watching",
-    "untertitelung des zdf", "untertitel im auftrag des zdf",
-    "untertitel der amara.org-community", "copyright wdr",
-    "das war's", "bis zum naechsten mal", "tschuess", "glossar",
-}
-
 VAD_PARAMS = {"min_silence_duration_ms": 500}
-
-
-def _is_hallucination(segments) -> bool:
-    """Gesamttext als Halluzination einstufen, wenn er einer bekannten
-    Stille-Phrase entspricht UND die Modell-Signale schwach sind."""
-    if not segments:
-        return False
-    text = " ".join(s.text.strip() for s in segments).strip().lower().rstrip(".!?")
-    avg_lp = sum(s.avg_logprob for s in segments) / len(segments)
-    max_nsp = max(s.no_speech_prob for s in segments)
-    return text in HALLUCINATION_PHRASES and (avg_lp < -0.5 or max_nsp > 0.5)
 
 
 class Transcriber:
@@ -134,28 +115,13 @@ class Transcriber:
             log.info("Sprache %s nicht erlaubt, retranskribiere als %s", info.language, best)
             segments, info = self._run(audio, best, initial_prompt, beam_size)
 
-        # Qualitaets-Filter pro Segment (Stille-Halluzinationen)
-        kept = [s for s in segments
-                if not (s.no_speech_prob > 0.6 and s.avg_logprob < -1.0)]
-        if _is_hallucination(kept):
-            # Kein Klartext ins Log (Projektpolicy) - nur Metadaten.
-            log.info("Halluzination verworfen (%d Segmente)", len(kept))
-            kept = []
-
-        text = " ".join(seg.text.strip() for seg in kept).strip()
-
-        # Prompt-Echo-Filter: Whisper gibt bei kurzen/leisen Aufnahmen gern den
-        # initial_prompt (Woerterbuch-Bias) wieder aus - das wurde dem Nutzer
-        # live als Text eingefuegt ("Glossar"-Bug). Besteht die Ausgabe NUR aus
-        # Prompt-Woertern und sind die Modell-Signale schwach, verwerfen.
-        if text and initial_prompt and kept:
-            prompt_words = set(re.findall(r"\w+", initial_prompt.lower()))
-            text_words = set(re.findall(r"\w+", text.lower()))
-            avg_lp = sum(s.avg_logprob for s in kept) / len(kept)
-            if text_words and text_words <= prompt_words and avg_lp < -0.4:
-                # Kein Klartext ins Log (Projektpolicy) - nur Metadaten.
-                log.info("Prompt-Echo verworfen (logprob %.2f, %d Woerter)",
-                         avg_lp, len(text.split()))
-                text = ""
+        # Qualitaets-Filter (Stille-Halluzinationen + Prompt-Echo), geteilt
+        # mit der mlx-Engine - siehe stt_quality.py
+        kept = drop_low_quality([(s.text, s.avg_logprob, s.no_speech_prob)
+                                 for s in segments])
+        text = " ".join(t.strip() for t, _, _ in kept).strip()
+        if kept:
+            avg_lp = sum(lp for _, lp, _ in kept) / len(kept)
+            text = strip_prompt_echo(text, initial_prompt, avg_lp)
 
         return text, info.language, info
