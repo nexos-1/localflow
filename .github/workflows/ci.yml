@@ -26,8 +26,9 @@ jobs:
           python tests/test_levelmeter.py
           python tests/test_cleanup_start.py
           python tests/test_darwin_port.py
-      - name: Overlay-Watchdog (echtes Tk-Fenster, Selbstheilung)
-        run: python tests/test_overlay_watchdog.py
+      # test_overlay_watchdog.py laeuft bewusst NICHT hier: die Runner-
+      # Fensterstation zerstoert Tk-Fenster sofort (kein echter Desktop) -
+      # der Test braucht eine interaktive Windows-Session (lokal ausfuehren).
       - name: Backend-Smoke (win32)
         run: python -c "from localflow.platform import get_backends; print(sorted(vars(get_backends())))"
 

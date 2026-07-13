@@ -7,7 +7,10 @@ AUSSEN (WM_CLOSE, wie es Display-/Session-Events koennen) und prueft,
 dass der Watchdog eine frische Pill startet und der Aufnahme-Zustand
 (State + Live-Text + Design) automatisch zurueckkommt.
 
-Windows-only; oeffnet real kurz die Pill unten am Bildschirm.
+Windows-only; oeffnet real kurz die Pill unten am Bildschirm. Braucht
+eine INTERAKTIVE Windows-Session - auf GitHub-CI-Runnern zerstoert die
+Headless-Fensterstation Tk-Fenster sofort (verifiziert 2026-07-13),
+deshalb laeuft dieser Test bewusst nicht in ci.yml.
 """
 
 import ctypes
