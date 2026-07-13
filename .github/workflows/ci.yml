@@ -26,6 +26,8 @@ jobs:
           python tests/test_levelmeter.py
           python tests/test_cleanup_start.py
           python tests/test_darwin_port.py
+      - name: Overlay-Watchdog (echtes Tk-Fenster, Selbstheilung)
+        run: python tests/test_overlay_watchdog.py
       - name: Backend-Smoke (win32)
         run: python -c "from localflow.platform import get_backends; print(sorted(vars(get_backends())))"
 

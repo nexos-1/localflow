@@ -75,15 +75,103 @@ def _active_monitor_work_area() -> tuple[int, int, int, int]:
     return 0, 0, user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
 
 
+# Watchdog: erkennt eine gestorbene Overlay-Thread (Heartbeat) und startet
+# die Pill neu. Feldbefund 2026-07-13: Fenster existierte noch (alpha=0,
+# Styles ok), aber die root.after-Tick-Kette war tot - Sounds/Diktat liefen
+# weiter, UI unsichtbar. Tk auf einem Worker-Thread kann durch extern
+# zerstoerte Fenster (Display-Wechsel, RDP, Session-Events) so enden.
+WATCHDOG_CHECK_S = 5.0     # Pruefintervall
+WATCHDOG_MISSES = 2        # so viele stale-Checks in Folge = tot (schuetzt
+                           # gegen Fehlalarm direkt nach Standby-Aufwachen)
+
+
 class Overlay:
     def __init__(self):
         self._queue: queue.Queue = queue.Queue()
-        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._hb = {"t": 0.0}      # letzter Tick (perf_counter) der Overlay-Thread
+        self._hwnd_box = {"hwnd": None}  # HWND der aktuellen Pill (fuer Aufraeumen)
+        self._last = {}            # zuletzt gesetzte Werte (Replay nach Neustart)
+        self._gen = 0
+        self._thread = None
+        self._started = False
 
     def start(self):
+        if self._started:
+            return
+        self._started = True
+        self._launch()
+        threading.Thread(target=self._watch, daemon=True,
+                         name="localflow-overlay-watchdog").start()
+
+    def _launch(self):
+        self._gen += 1
+        # Frische Objekte pro Generation: eine evtl. noch zuckende alte
+        # Thread haelt ihre eigenen (verwaisten) Captures und kann weder
+        # die neue Queue leeren noch den neuen Heartbeat faelschen.
+        self._hb = {"t": time.perf_counter()}
+        self._hwnd_box = {"hwnd": None}
+        self._thread = threading.Thread(target=self._run, daemon=True,
+                                        name=f"localflow-overlay-{self._gen}")
         self._thread.start()
 
+    def _watch(self):
+        """Heartbeat pruefen; bleibt er WATCHDOG_MISSES Checks in Folge stehen,
+        gilt die Overlay-Thread als tot: Zombie-Fenster verstecken, Queue
+        austauschen (die tote Thread haelt evtl. noch die alte) und die Pill
+        mit den gemerkten Design-Einstellungen neu starten."""
+        misses = 0
+        while True:
+            time.sleep(WATCHDOG_CHECK_S)
+            stale = time.perf_counter() - self._hb["t"]
+            if stale < WATCHDOG_CHECK_S * 1.5:
+                misses = 0
+                continue
+            misses += 1
+            if misses < WATCHDOG_MISSES:
+                continue  # z.B. Aufwachen aus Standby: naechster Check entscheidet
+            misses = 0
+            log.warning("Overlay-Thread tot (letzter Tick vor %.0fs) - starte die "
+                        "Pill neu", stale)
+            self._hide_zombie_window()
+            self._queue = queue.Queue()
+            self._launch()
+            self._replay_settings()
+
+    def _hide_zombie_window(self):
+        """Fenster einer toten Overlay-Thread unsichtbar machen (reines Win32,
+        braucht kein lebendes Tk). Verhindert einen eingefrorenen Pill-Geist,
+        falls die Thread mitten in einer sichtbaren Phase starb."""
+        hwnd = self._hwnd_box.get("hwnd")
+        if not hwnd:
+            return
+        try:
+            user32 = ctypes.windll.user32
+            if user32.IsWindow(hwnd):
+                user32.ShowWindow(hwnd, 0)  # SW_HIDE
+        except Exception:  # noqa: BLE001
+            log.debug("Zombie-Fenster verstecken fehlgeschlagen", exc_info=True)
+
+    def _replay_settings(self):
+        """Design + aktuellen Zustand in die frische Pill spielen (sonst kaeme
+        sie mit Defaults zurueck: dunkles Thema, Standardschrift, hidden)."""
+        last = self._last
+        if "glass" in last:
+            self._queue.put(("glass", last["glass"]))
+        if "style" in last:
+            self._queue.put(("style", last["style"]))
+        if "theme" in last:
+            self._queue.put(("theme", last["theme"]))
+        # Reihenfolge: state VOR text - ein frischer Show loescht das
+        # Transkript, der Replay-Text kommt danach wieder rein.
+        if last.get("state") not in (None, "hidden"):
+            self._queue.put(("state", last["state"]))
+            if last.get("text"):
+                self._queue.put(("text", last["text"]))
+
     def set_state(self, state: str):
+        self._last["state"] = state
+        if state not in WAVE_STATES:
+            self._last["text"] = ""  # Preview-Text gehoert nur zur Aufnahme
         self._queue.put(("state", state))
 
     def set_level(self, level: float):
@@ -93,23 +181,41 @@ class Overlay:
     def set_text(self, text: str):
         """Live-Transkript fuer die Aufnahme-Anzeige. Wird nur in den
         WAVE_STATES (recording/locked) gezeichnet; leer = Waveform zeigen."""
+        self._last["text"] = text or ""
         self._queue.put(("text", text or ""))
 
     def set_glass(self, enabled: bool):
         """Glas-Optik an/aus: durchscheinende Pille (Desktop schimmert durch)."""
+        self._last["glass"] = bool(enabled)
         self._queue.put(("glass", bool(enabled)))
 
     def set_style(self, font_family: str | None = None, font_size: int | None = None):
         """Schriftart/-groesse der Pille live setzen (Widget-Design)."""
+        self._last["style"] = (font_family, font_size)
         self._queue.put(("style", (font_family, font_size)))
 
     def set_theme(self, theme: str):
         """Farb-Thema der Pille: "dark" (Standard) oder "light"."""
+        self._last["theme"] = theme
         self._queue.put(("theme", theme))
 
     # ------------------------------------------------------------------ Tk
 
     def _run(self):
+        """Traegerfunktion der Overlay-Thread: loggt den Todesgrund - vor der
+        Watchdog-Einfuehrung starb die Thread bei pythonw voellig lautlos."""
+        try:
+            self._run_tk()
+            log.warning("Overlay-Mainloop hat sich beendet (Tk-Fenster weg?)")
+        except Exception:  # noqa: BLE001
+            log.warning("Overlay-Thread gestorben", exc_info=True)
+
+    def _run_tk(self):
+        # Lokale Captures der Generations-Objekte (siehe _launch)
+        q = self._queue
+        hb = self._hb
+        hwnd_box = self._hwnd_box
+
         root = tk.Tk()
         root.withdraw()
         root.overrideredirect(True)
@@ -438,7 +544,7 @@ class Overlay:
                 last["t"] = now
                 try:
                     while True:
-                        kind, value = self._queue.get_nowait()
+                        kind, value = q.get_nowait()
                         if kind == "state":
                             apply_state(value, now)
                         elif kind == "level":
@@ -570,6 +676,7 @@ class Overlay:
             except Exception:  # noqa: BLE001
                 log.debug("Overlay-Tick fehlgeschlagen", exc_info=True)
             finally:
+                hb["t"] = time.perf_counter()  # Herzschlag fuer den Watchdog
                 root.after(TICK_MS if present else 30, tick)
 
         # Fenster EINMAL mappen und click-through machen (WS_EX_TRANSPARENT),
@@ -589,6 +696,7 @@ class Overlay:
             ex |= 0x00080000 | 0x00000020 | 0x00000080 | 0x08000000
             user32.SetWindowLongW(hwnd, GWL_EXSTYLE, ex)
             st["hwnd"] = hwnd  # fuer die Hover-Erkennung (GetWindowRect)
+            hwnd_box["hwnd"] = hwnd  # fuer den Watchdog (Zombie-Aufraeumen)
         except Exception:  # noqa: BLE001
             log.debug("Click-through-Style konnte nicht gesetzt werden", exc_info=True)
 
