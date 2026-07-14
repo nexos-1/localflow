@@ -82,7 +82,25 @@ def main():
              "Pill nach Selbstheilung wieder sichtbar")
     print(f"Gen 2: hwnd={hwnd2:#x} alpha={window_alpha(hwnd2)} (Replay ok)")
 
-    # 4. Normales Verhalten der neuen Generation: hidden blendet aus
+    # 4. Topmost-Degradierung heilt sich selbst (Feldbefund 2026-07-14:
+    #    Windows warf die Pill aus dem Topmost-Band, sie renderte unsichtbar
+    #    hinter normalen Fenstern). Extern degradieren -> der periodische
+    #    Nachdruck im Tick muss sie binnen ~3s zurueckholen.
+    WS_EX_TOPMOST = 0x8
+
+    def is_topmost():
+        return bool(user32.GetWindowLongW(hwnd2, -20) & WS_EX_TOPMOST)
+
+    assert is_topmost(), "Pill startet nicht topmost?"
+    # Degradieren; KEINE Zwischen-Assertion auf "nicht mehr topmost" - der
+    # 2s-Nachdruck im Tick kann schneller heilen, als der Test hinschaut.
+    ok = user32.SetWindowPos(hwnd2, ctypes.c_void_p(-2),  # HWND_NOTOPMOST
+                             0, 0, 0, 0, 0x0213)
+    assert ok, "Degradierung (Testaufbau) schlug fehl"
+    wait_for(is_topmost, 4, "Topmost-Selbstheilung")
+    print("Topmost-Degradierung selbst geheilt OK")
+
+    # 5. Normales Verhalten der neuen Generation: hidden blendet aus
     o.set_state("hidden")
     wait_for(lambda: window_alpha(hwnd2) == 0, 5,
              "Pill blendet nach hidden aus")

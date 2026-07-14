@@ -109,6 +109,26 @@ def _ensure_on_current_desktop(hwnd):
         log.debug("Virtual-Desktop-Pruefung fehlgeschlagen", exc_info=True)
 
 
+def _assert_topmost(hwnd):
+    """Topmost-Status real durchsetzen. Windows wirft Fenster gelegentlich
+    aus dem Topmost-Band (Vollbild-/Video-Apps), waehrend das
+    WS_EX_TOPMOST-Bit gesetzt bleibt - die Pill rendert dann unsichtbar
+    HINTER normalen Fenstern weiter (Feldbefund 2026-07-14: Pill mit
+    topmost=True auf z=3 unter zwei maximierten Chrome-Fenstern; App-seitig
+    war alles korrekt). Tk setzt -topmost nur einmal beim Start, deshalb
+    hier bei jedem Einblenden und periodisch waehrend der Sichtbarkeit
+    nachdruecken."""
+    if not hwnd:
+        return
+    try:
+        # HWND_TOPMOST=-1 als echter Pointer (nacktes int -1 ist auf 64-bit
+        # kein zuverlaessiger HWND); SWP_NOSIZE|NOMOVE|NOACTIVATE|NOOWNERZORDER
+        ctypes.windll.user32.SetWindowPos(hwnd, ctypes.c_void_p(-1),
+                                          0, 0, 0, 0, 0x0213)
+    except Exception:  # noqa: BLE001
+        log.debug("Topmost-Nachdruck fehlgeschlagen", exc_info=True)
+
+
 class _MONITORINFO(ctypes.Structure):
     _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
                 ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
@@ -309,6 +329,7 @@ class Overlay:
             "pill_scr": None,      # Pill-Rechteck in Bildschirm-Px (letzter Frame)
             "glass": False,        # Glas-Optik: durchscheinende Pille
             "col": THEMES["dark"],  # aktives Farb-Thema (set_theme)
+            "top_ts": 0.0,         # letzter Topmost-Nachdruck (_assert_topmost)
         }
 
         def content_width(state: str) -> float:
@@ -397,6 +418,8 @@ class Overlay:
                 # daher kein DWM-Ruckler im ersten Frame.
                 position_window()
                 _ensure_on_current_desktop(st["hwnd"])
+                _assert_topmost(st["hwnd"])
+                st["top_ts"] = now
                 st["vis"], st["prev"] = new, None
                 st["text"] = ""      # frisches Diktat: kein altes Transkript
                 st["state_t0"] = now
@@ -654,6 +677,12 @@ class Overlay:
                         except Exception:  # noqa: BLE001
                             pass
                         st["fine"] = True
+                    # Topmost periodisch nachdruecken: Windows kann die Pill
+                    # auch MITTEN in einer Aufnahme aus dem Topmost-Band
+                    # werfen (siehe _assert_topmost).
+                    if now - st["top_ts"] > 2.0:
+                        _assert_topmost(st["hwnd"])
+                        st["top_ts"] = now
                     # Pegel zeitbasiert glaetten (Attack schnell, Release traege).
                     target = st["level"] if (st["vis"] in WAVE_STATES
                                              and want) else 0.0
