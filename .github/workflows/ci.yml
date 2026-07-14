@@ -26,6 +26,7 @@ jobs:
           python tests/test_levelmeter.py
           python tests/test_cleanup_start.py
           python tests/test_darwin_port.py
+          python tests/test_orphan_guard.py
       # test_overlay_watchdog.py laeuft bewusst NICHT hier: die Runner-
       # Fensterstation zerstoert Tk-Fenster sofort (kein echter Desktop) -
       # der Test braucht eine interaktive Windows-Session (lokal ausfuehren).

@@ -59,6 +59,13 @@ class LocalFlowApp:
         self._user_paused = False           # vom Tray gesetzt (getrennt von Capture-Pause)
         self._capture_count = 0
         self._capture_lock = threading.Lock()
+        # Verwaist-Wächter: merkt sich den zuletzt gesendeten Overlay-State
+        # und wie viele _process-Jobs laufen (Feldbefund 2026-07-14: Pill
+        # hing minutenlang sichtbar, obwohl nichts mehr lief).
+        self._overlay_state = "hidden"
+        self._overlay_state_ts = 0.0
+        self._jobs = 0
+        self._jobs_lock = threading.Lock()
         self.models_ready = threading.Event()
         self._record_start_ts = 0.0
         self._record_start_mono = 0.0
@@ -88,6 +95,8 @@ class LocalFlowApp:
 
         self._install_hotkey()
         self._install_toggle()
+        threading.Thread(target=self._overlay_orphan_guard, daemon=True,
+                         name="localflow-orphan-guard").start()
 
         self._run_tray()  # blockiert bis Beenden
 
@@ -103,7 +112,7 @@ class LocalFlowApp:
             # Modelle" - jetzt auf den echten Aufnahme-State weiterschalten.
             if self.recorder.is_recording:
                 locked = self.controller and self.controller.state == "locked"
-                self.overlay.set_state("locked" if locked else "recording")
+                self._set_overlay_state("locked" if locked else "recording")
         except Exception:
             log.exception("Modell-Laden fehlgeschlagen")
 
@@ -185,6 +194,35 @@ class LocalFlowApp:
             except Exception:  # noqa: BLE001 - ungueltige Combo darf nicht crashen
                 log.warning("Toggle-Hotkey %r konnte nicht registriert werden", combo)
 
+    def _set_overlay_state(self, state: str):
+        """Einziger Weg, den Overlay-State zu setzen - der Verwaist-Wächter
+        braucht den zuletzt gesendeten Zustand samt Zeitstempel."""
+        self._overlay_state = state
+        self._overlay_state_ts = time.monotonic()
+        self.overlay.set_state(state)
+
+    def _overlay_orphan_guard(self):
+        """Sicherheitsnetz: zeigt die Pill einen Nicht-hidden-Zustand, obwohl
+        seit 15s weder Aufnahme noch Verarbeitung laeuft, zwangsverstecken
+        und WARNING loggen. Faengt verlorene hidden-Uebergaenge ab, egal wo
+        sie verloren gingen."""
+        while True:
+            time.sleep(5)
+            try:
+                if self._overlay_state in ("hidden", None):
+                    continue
+                if self.recorder.is_recording or self._jobs > 0:
+                    continue
+                idle_s = time.monotonic() - self._overlay_state_ts
+                if idle_s < 15:
+                    continue
+                log.warning("Overlay-Zustand %r verwaist (seit %ds keine "
+                            "Aufnahme/Verarbeitung) - verstecke Pill",
+                            self._overlay_state, int(idle_s))
+                self._set_overlay_state("hidden")
+            except Exception:  # noqa: BLE001 - Wächter darf nie sterben
+                log.debug("Orphan-Guard-Fehler", exc_info=True)
+
     def _on_level(self, level: float):
         self.last_level = level
         self.overlay.set_level(level)
@@ -205,7 +243,7 @@ class LocalFlowApp:
             # Preview-Text des VORIGEN Diktats loeschen, bevor die Pille
             # wieder auf recording geht (Queue ist geordnet: text vor state).
             self.overlay.set_text("")
-            self.overlay.set_state("recording" if self.models_ready.is_set() else "loading")
+            self._set_overlay_state("recording" if self.models_ready.is_set() else "loading")
             if self.settings.get("live_preview") and self.models_ready.is_set():
                 session = self._record_session
                 threading.Thread(target=self._run_preview, args=(session,),
@@ -224,7 +262,7 @@ class LocalFlowApp:
             log.debug("recorder.stop im Abbruch fehlgeschlagen", exc_info=True)
         self.ducker.restore()
         self._cancel_watchdog()
-        self.overlay.set_state("hidden")
+        self._set_overlay_state("hidden")
 
     def _arm_max_duration_watchdog(self, session: int):
         """Auto-Stopp, wenn das Freisprechen vergessen wurde."""
@@ -280,7 +318,7 @@ class LocalFlowApp:
             return  # z.B. pausiert oder Start fehlgeschlagen - nicht "locked" zeigen
         if self.settings.get("play_sounds"):
             self.backends.sounds.play("lock")
-        self.overlay.set_state("locked")
+        self._set_overlay_state("locked")
 
     def _on_dictate_cancel(self):
         """Versehentlicher Einzeltipp: verwerfen ohne Verarbeitung."""
@@ -288,7 +326,7 @@ class LocalFlowApp:
 
     def _on_dictate_stop(self):
         if not self.recorder.is_recording:
-            self.overlay.set_state("hidden")  # ggf. haengende "locked"-Pill aufloesen
+            self._set_overlay_state("hidden")  # ggf. haengende "locked"-Pill aufloesen
             return
         session = self._record_session
         inj = self.backends.inject
@@ -323,7 +361,7 @@ class LocalFlowApp:
         sonst wuerde ein verspaeteter alter Thread die Pill eines neuen
         Diktats ueberschreiben (z.B. altes 'hidden' verdeckt neues 'recording')."""
         if session == self._record_session:
-            self.overlay.set_state(state)
+            self._set_overlay_state(state)
 
     def _on_toggle(self):
         if not self.controller:
@@ -356,6 +394,16 @@ class LocalFlowApp:
         return audio[n:]
 
     def _process(self, session, audio, duration, app_name, title, target_hwnd, trim_ctx):
+        with self._jobs_lock:
+            self._jobs += 1
+        try:
+            self._process_inner(session, audio, duration, app_name, title,
+                                target_hwnd, trim_ctx)
+        finally:
+            with self._jobs_lock:
+                self._jobs -= 1
+
+    def _process_inner(self, session, audio, duration, app_name, title, target_hwnd, trim_ctx):
         inj = self.backends.inject
         try:
             if not self.models_ready.wait(timeout=120):

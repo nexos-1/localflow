@@ -53,6 +53,62 @@ log = logging.getLogger("localflow.overlay")
 TRANS = "#010102"          # Transparenz-Schluesselfarbe (kommt sonst nicht vor)
 
 
+_IVDM_CLASS = None  # lazy definiertes comtypes-Interface (einmal pro Prozess)
+
+
+def _vdm():
+    """IVirtualDesktopManager-Instanz (dokumentierte Shell-COM-API)."""
+    global _IVDM_CLASS
+    import comtypes
+    from ctypes import HRESULT, POINTER
+    from ctypes.wintypes import BOOL, HWND
+    from comtypes import COMMETHOD, GUID, IUnknown
+
+    if _IVDM_CLASS is None:
+        class IVirtualDesktopManager(IUnknown):
+            _iid_ = GUID("{a5cd92ff-29be-454c-8d04-d82879fb3f1b}")
+            _methods_ = [
+                COMMETHOD([], HRESULT, "IsWindowOnCurrentVirtualDesktop",
+                          (["in"], HWND, "topLevelWindow"),
+                          (["out"], POINTER(BOOL), "onCurrentDesktop")),
+                COMMETHOD([], HRESULT, "GetWindowDesktopId",
+                          (["in"], HWND, "topLevelWindow"),
+                          (["out"], POINTER(GUID), "desktopId")),
+                COMMETHOD([], HRESULT, "MoveWindowToDesktop",
+                          (["in"], HWND, "topLevelWindow"),
+                          (["in"], POINTER(GUID), "desktopId")),
+            ]
+        _IVDM_CLASS = IVirtualDesktopManager
+
+    comtypes.CoInitialize()  # idempotent pro Thread
+    return comtypes.CoCreateInstance(
+        GUID("{aa509086-5ca9-4c25-8f95-589d3c07b48a}"), interface=_IVDM_CLASS)
+
+
+def _ensure_on_current_desktop(hwnd):
+    """Virtuelle Desktops: eine Topmost-Pill "klebt" auf dem Desktop, auf dem
+    sie erzeugt wurde - wechselt der Nutzer den Desktop (Win+Strg+Pfeil),
+    diktiert er mit fuer ihn unsichtbarer Pill (Feldbefund 2026-07-14:
+    Fenster gesund, alpha korrekt, Inhalt gezeichnet, Nutzer sieht nichts).
+    Beim Einblenden daher pruefen und notfalls auf den Desktop des gerade
+    fokussierten Fensters umziehen. Best-Effort: comtypes ist ohnehin
+    Windows-Dependency, Fehler duerfen das Einblenden nie stoppen."""
+    if not hwnd:
+        return
+    try:
+        vdm = _vdm()
+        if vdm.IsWindowOnCurrentVirtualDesktop(hwnd):
+            return
+        fg = ctypes.windll.user32.GetForegroundWindow()
+        if not fg:
+            return
+        vdm.MoveWindowToDesktop(hwnd, vdm.GetWindowDesktopId(fg))
+        log.info("Pill war auf einem anderen virtuellen Desktop - auf den "
+                 "aktuellen verschoben")
+    except Exception:  # noqa: BLE001
+        log.debug("Virtual-Desktop-Pruefung fehlgeschlagen", exc_info=True)
+
+
 class _MONITORINFO(ctypes.Structure):
     _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
                 ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
@@ -169,6 +225,11 @@ class Overlay:
                 self._queue.put(("text", last["text"]))
 
     def set_state(self, state: str):
+        # Breadcrumb auf INFO: macht die State-Timeline im Log sichtbar
+        # (Feldbefund 2026-07-14: Pill haengt sichtbar ohne erkennbaren
+        # Grund - ohne Timeline ist so etwas nicht diagnostizierbar).
+        if state != self._last.get("state"):
+            log.info("Overlay-State: %s -> %s", self._last.get("state", "-"), state)
         self._last["state"] = state
         if state not in WAVE_STATES:
             self._last["text"] = ""  # Preview-Text gehoert nur zur Aufnahme
@@ -335,6 +396,7 @@ class Overlay:
                 # aktiven Monitor setzen - kein Mapping/deiconify im Hot-Path,
                 # daher kein DWM-Ruckler im ersten Frame.
                 position_window()
+                _ensure_on_current_desktop(st["hwnd"])
                 st["vis"], st["prev"] = new, None
                 st["text"] = ""      # frisches Diktat: kein altes Transkript
                 st["state_t0"] = now
