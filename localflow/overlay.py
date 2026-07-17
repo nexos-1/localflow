@@ -392,18 +392,52 @@ class Overlay:
             # Win32-API. scale normalisiert beide Faelle (=1, wenn Tk ebenfalls
             # in physischen Pixeln misst) - so sitzt die Pille zentriert unten,
             # egal bei welcher Windows-Skalierung.
+            left, top, right, bottom = _active_monitor_work_area()
+            if right - left < 200 or bottom - top < 200:
+                # Degenerierte Monitor-Daten (Login-Phase/Treiberwechsel):
+                # auf Tks eigene Sicht des Primaermonitors zurueckfallen.
+                sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+                root.geometry(f"{max_w}x{win_h}+{int((sw - max_w) / 2)}"
+                              f"+{int(sh - BOTTOM_MARGIN - win_h + PAD_BOTTOM)}")
+                return
             try:
                 phys_w = ctypes.windll.user32.GetSystemMetrics(0) or 1
                 scale = root.winfo_screenwidth() / phys_w
             except Exception:  # noqa: BLE001
                 scale = 1.0
-            left, top, right, bottom = _active_monitor_work_area()
             x = int((left + right) / 2 * scale - max_w / 2)
             # Fenster so setzen, dass die UNTERKANTE der (eingeklappten) Pille
             # BOTTOM_MARGIN ueber dem Arbeitsflaechen-Rand sitzt - unabhaengig
             # von der Fensterhoehe, die jetzt fuers Ausklappen groesser ist.
             y = int(bottom * scale) - BOTTOM_MARGIN - win_h + PAD_BOTTOM
             root.geometry(f"{max_w}x{win_h}+{x}+{y}")
+            # Selbstkalibrierung: gelandete PHYSISCHE Position nachmessen und
+            # einmal exakt nachkorrigieren. Der Tk->physisch-Faktor wird aus
+            # der EIGENEN Fensterbreite gemessen statt aus Screen-Metriken
+            # geraten - beim Login lieferte winfo_screenwidth veraltete Werte
+            # und die Pill landete oben links (Feldbefund 2026-07-17).
+            try:
+                root.update_idletasks()
+                hwnd = st["hwnd"]
+                r = wintypes.RECT()
+                if not (hwnd and ctypes.windll.user32.GetWindowRect(
+                        hwnd, ctypes.byref(r))):
+                    return
+                factor = (r.right - r.left) / max_w  # physisch pro Tk-Pixel
+                if factor <= 0.1:
+                    return
+                want_cx = (left + right) / 2
+                want_bottom = bottom - BOTTOM_MARGIN + PAD_BOTTOM * factor
+                dx = want_cx - (r.left + r.right) / 2
+                dy = want_bottom - r.bottom
+                if abs(dx) > 4 or abs(dy) > 4:
+                    root.geometry(f"{max_w}x{win_h}+{int(x + dx / factor)}"
+                                  f"+{int(y + dy / factor)}")
+                    log.info("Pill-Position nachkalibriert (%+d/%+d px physisch)",
+                             int(dx), int(dy))
+            except Exception:  # noqa: BLE001
+                log.debug("Positions-Nachkalibrierung fehlgeschlagen",
+                          exc_info=True)
 
         def apply_state(new: str, now: float):
             if new == st["target"]:

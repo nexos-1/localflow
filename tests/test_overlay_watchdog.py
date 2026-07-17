@@ -100,7 +100,35 @@ def main():
     wait_for(is_topmost, 4, "Topmost-Selbstheilung")
     print("Topmost-Degradierung selbst geheilt OK")
 
-    # 5. Normales Verhalten der neuen Generation: hidden blendet aus
+    # 5. Position: unten-mittig auf dem Monitor des Fensters (physisch
+    #    nachgemessen - Feldbefund 2026-07-17: Pill landete beim Login oben
+    #    links, weil Tk veraltete Screen-Masse lieferte; position_window
+    #    kalibriert sich jetzt selbst nach).
+    class RECT(ctypes.Structure):
+        _fields_ = [("L", ctypes.c_long), ("T", ctypes.c_long),
+                    ("R", ctypes.c_long), ("B", ctypes.c_long)]
+
+    class MONITORINFO(ctypes.Structure):
+        _fields_ = [("cbSize", ctypes.c_ulong), ("rcMonitor", RECT),
+                    ("rcWork", RECT), ("dwFlags", ctypes.c_ulong)]
+
+    wr = RECT()
+    assert user32.GetWindowRect(hwnd2, ctypes.byref(wr))
+    hmon = user32.MonitorFromWindow(hwnd2, 2)  # MONITOR_DEFAULTTONEAREST
+    mi = MONITORINFO()
+    mi.cbSize = ctypes.sizeof(MONITORINFO)
+    assert user32.GetMonitorInfoW(hmon, ctypes.byref(mi))
+    win_cx = (wr.L + wr.R) / 2
+    mon_cx = (mi.rcWork.L + mi.rcWork.R) / 2
+    assert abs(win_cx - mon_cx) <= 10, \
+        f"Pill nicht zentriert: Fenster-Mitte {win_cx}, Monitor-Mitte {mon_cx}"
+    gap = mi.rcWork.B - wr.B  # Abstand Fenster-Unterkante zum Arbeitsflaechen-Rand
+    assert 15 <= gap <= 70, \
+        f"Pill nicht unten verankert: {gap}px ueber Arbeitsflaechen-Unterkante"
+    print(f"Position OK: zentriert (Delta {win_cx - mon_cx:+.0f}px), "
+          f"{gap}px ueber Unterkante")
+
+    # 6. Normales Verhalten der neuen Generation: hidden blendet aus
     o.set_state("hidden")
     wait_for(lambda: window_alpha(hwnd2) == 0, 5,
              "Pill blendet nach hidden aus")
