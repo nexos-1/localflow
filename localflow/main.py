@@ -248,6 +248,13 @@ class LocalFlowApp:
                 session = self._record_session
                 threading.Thread(target=self._run_preview, args=(session,),
                                  daemon=True, name="localflow-preview").start()
+            # Cleanup-Modell parallel zur Aufnahme vorwaermen: ein Ollama-
+            # Kaltstart (3-8s) faellt so in die Sprechzeit statt in die
+            # Wartezeit nach dem Loslassen (touch ist entprellt und billig,
+            # wenn das Modell schon warm ist).
+            if self.settings.get("ai_cleanup") and self.pipeline.cleaner is not None:
+                threading.Thread(target=self.pipeline.cleaner.touch,
+                                 daemon=True, name="localflow-cleanup-touch").start()
         except Exception:
             # z.B. Mikro abgesteckt -> Aufnahme kam nicht zustande: sauber
             # zuruecksetzen, sonst blieben Apps stumm / Overlay haengt.

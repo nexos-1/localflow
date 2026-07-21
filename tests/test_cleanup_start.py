@@ -76,4 +76,78 @@ r, spawns = run_with_spawn_counter(c)
 assert r == [False] and spawns == 1, (r, spawns)
 print("5. haengender Fremdprozess -> Fallback-Spawn nach Wartezeit OK")
 
+# --- touch(): Kaltstart-Vorwaermung beim Aufnahme-Start ---
+import time  # noqa: E402
+
+
+def make_touch_cleaner(last_used_age: float):
+    c = Cleaner()
+    c.is_healthy = lambda: True     # ensure_running -> sofort True
+    c._last_used = time.monotonic() - last_used_age
+    return c
+
+
+# 6. Kalt (lange nicht genutzt) -> genau EIN Lade-POST, _last_used frisch
+c = make_touch_cleaner(last_used_age=120)
+with mock.patch("localflow.cleanup.requests.post") as post:
+    c.touch()
+assert post.call_count == 1, post.call_count
+payload = post.call_args.kwargs["json"]
+assert payload == {"model": c.model, "keep_alive": c.keep_alive}, payload
+assert time.monotonic() - c._last_used < 5
+print("6. touch kalt -> genau EIN Lade-POST OK")
+
+# 6b. Langsames Laden (>1s) -> zusaetzlich EIN Mini-Clean (Erst-Inferenz
+#     vorziehen); schnelles Laden (Fall 6) loest KEINEN Clean aus.
+c = make_touch_cleaner(last_used_age=120)
+cleans = []
+c.clean = lambda text, language=None: cleans.append(text)
+
+
+def slow_load(*a, **kw):
+    time.sleep(1.1)
+    return mock.Mock()
+
+
+with mock.patch("localflow.cleanup.requests.post", side_effect=slow_load):
+    c.touch()
+assert cleans == ["hallo test"], cleans
+print("6b. Kaltstart-touch -> Mini-Clean fuer Erst-Inferenz OK")
+
+# 7. Kuerzlich genutzt (< 60s) -> gar kein HTTP-Aufruf
+c = make_touch_cleaner(last_used_age=10)
+with mock.patch("localflow.cleanup.requests.post") as post:
+    c.touch()
+assert post.call_count == 0, post.call_count
+print("7. touch warm (Ruhezeit) -> kein Aufruf OK")
+
+# 8. Paralleler zweiter touch wird uebersprungen (Single-Flight)
+c = make_touch_cleaner(last_used_age=120)
+started = threading.Event()
+release = threading.Event()
+
+
+def slow_post(*a, **kw):
+    started.set()
+    release.wait(3)
+    return mock.Mock()
+
+
+with mock.patch("localflow.cleanup.requests.post", side_effect=slow_post) as post:
+    t = threading.Thread(target=c.touch)
+    t.start()
+    started.wait(3)
+    c.touch()          # muss sofort zurueckkehren, ohne zweiten POST
+    release.set()
+    t.join()
+assert post.call_count == 1, post.call_count
+print("8. paralleler touch -> Single-Flight OK")
+
+# 9. Verdrahtung: _on_dictate_start startet den touch-Thread
+main_src = open(os.path.join(os.path.dirname(__file__), "..",
+                             "localflow", "main.py"), encoding="utf-8").read()
+start_body = main_src.split("def _on_dictate_start")[1].split("def _abort_recording")[0]
+assert "cleaner.touch" in start_body, "touch nicht im Aufnahme-Start verdrahtet"
+print("9. touch im Aufnahme-Start verdrahtet OK")
+
 print("\nCLEANUP START TESTS PASSED")

@@ -44,12 +44,18 @@ class Cleaner:
     BOOT_WAIT_S = 10.0   # so lange auf einen fremden/frischen Server warten
 
     def __init__(self, model: str = "gemma3:4b", base_url: str = "http://127.0.0.1:11434",
-                 timeout: float = 15.0, keep_alive: str = "30m"):
+                 timeout: float = 15.0, keep_alive: str = "2h"):
+        # keep_alive 2h statt Ollama-Default 5m/frueher 30m: weniger
+        # VRAM-Rauswuerfe zwischen Arbeitsphasen, ohne den Speicher dauerhaft
+        # zu belegen (Audit 2026-07-21: p90 Cleanup 3.4s, p99 = 8s-Timeout -
+        # alles Kaltstarts, warm sind es 388ms median).
         self.model = model
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.keep_alive = keep_alive
         self._start_lock = threading.Lock()
+        self._touch_lock = threading.Lock()
+        self._last_used = 0.0   # monotonic der letzten erfolgreichen Nutzung
 
     def is_healthy(self) -> bool:
         try:
@@ -127,6 +133,43 @@ class Cleaner:
         except Exception as e:  # noqa: BLE001
             log.warning("Ollama-Warmup fehlgeschlagen: %s", e)
 
+    def touch(self):
+        """Kaltstart-Killer: Modell-Laden anstossen bzw. keep_alive
+        auffrischen, OHNE Text zu generieren (POST ohne Prompt laedt bei
+        Ollama nur das Modell - dokumentiertes Verhalten). Wird beim
+        AUFNAHME-Start im Hintergrund gerufen: ein noetiger Kaltstart
+        (3-8s fuer gemma3:4b) laeuft dann parallel zur Sprechzeit statt
+        NACH dem Loslassen. Entprellt: nur ein Versuch gleichzeitig,
+        Ruhezeit 60s nach der letzten erfolgreichen Nutzung."""
+        if time.monotonic() - self._last_used < 60:
+            return
+        if not self._touch_lock.acquire(blocking=False):
+            return  # ein Touch laeuft bereits
+        try:
+            if not self.ensure_running():
+                return
+            t0 = time.perf_counter()
+            requests.post(f"{self.base_url}/api/generate",
+                          json={"model": self.model,
+                                "keep_alive": self.keep_alive},
+                          timeout=30)
+            load_s = time.perf_counter() - t0
+            if load_s > 1.0:
+                # Echter Kaltstart: Laden allein reicht nicht - die ERSTE
+                # Inferenz nach dem Laden kostet nochmal ~5s (Runner-Init +
+                # Prompt-Cache fuer System-Prompt/Few-Shots). Ein Mini-Clean
+                # zieht auch das in die Sprechzeit vor; er nutzt denselben
+                # Prompt-Praefix wie echte Cleanups (Cache-Treffer).
+                self.clean("hallo test")
+                log.info("Cleanup-Modell vorgewaermt (%.1fs Laden + "
+                         "Erst-Inferenz parallel zur Aufnahme)",
+                         time.perf_counter() - t0)
+            self._last_used = time.monotonic()
+        except Exception as e:  # noqa: BLE001
+            log.debug("Modell-Vorwaermen fehlgeschlagen: %s", e)
+        finally:
+            self._touch_lock.release()
+
     def clean(self, text: str, language: str | None = None) -> str:
         """Gibt bereinigten Text zurueck; bei jedem Fehler den Rohtext (nie blockieren)."""
         text = text.strip()
@@ -153,6 +196,7 @@ class Cleaner:
             r.raise_for_status()
             out = r.json()["message"]["content"].strip()
             out = _strip_wrapping(out)
+            self._last_used = time.monotonic()  # Modell ist jetzt sicher warm
             if not out or not _plausible(text, out):
                 # Kein Diktat-Klartext ins Log (Datenschutz) - nur Laengen.
                 log.warning("Cleanup-Ausgabe unplausibel (%d->%d Zeichen), nutze Rohtext",
