@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **Terminal-Fenster-Sturm beim Systemstart**: LocalFlow startete beim Boot
+  seinen eigenen `ollama serve` (Run-Key-Eintraege laufen vor dem
+  Autostart-Ordner) und belegte damit Port 11434. Ollamas eigene Tray-App
+  konnte danach nie binden und versuchte es endlos neu - gemessen 160.111
+  Fehlstarts in zwei Tagen, jeder ein kurzlebiges Konsolenfenster. Jetzt
+  gilt: gehoert der Port Ollamas Tray-App, wartet LocalFlow (nach einem
+  Systemstart bis zu 90 s) und startet nie einen eigenen Server; ist die
+  Tray-App installiert aber nicht gestartet, wird sie selbst gestartet
+  statt `ollama serve`. Der `serve`-Fallback bleibt nur fuer
+  Installationen ohne Tray-App.
+- Der Ollama-Warmup blockiert die Diktier-Bereitschaft nicht mehr (eigener
+  Thread) - Spracherkennung ist sofort nutzbar, das Cleanup schaltet sich
+  zu, sobald der Server da ist.
+
 ## 0.3.0 - 2026-07-08
 
 First public release.

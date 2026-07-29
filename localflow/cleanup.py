@@ -8,6 +8,8 @@ keinen Fall beantwortet werden, nur bereinigt.
 """
 
 import logging
+import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -16,6 +18,10 @@ import time
 import requests
 
 log = logging.getLogger("localflow.cleanup")
+
+# Ollamas eigene Tray-App (Windows). Sie startet und besitzt den Server auf
+# Port 11434 - LocalFlow ist dort nur Gast, siehe Cleaner.ensure_running.
+TRAY_APP_NAME = "ollama app.exe"
 
 SYSTEM_PROMPT = """You are a dictation post-processor. The user dictated text with speech recognition. Your ONLY job is to lightly clean up the raw transcript.
 
@@ -41,7 +47,11 @@ FEW_SHOT = [
 
 
 class Cleaner:
-    BOOT_WAIT_S = 10.0   # so lange auf einen fremden/frischen Server warten
+    BOOT_WAIT_S = 10.0    # so lange auf einen fremden/frischen Server warten
+    BOOT_GRACE_S = 90.0   # kurz nach dem Systemstart: laenger warten, weil
+                          # Ollamas Autostart erst nach den Run-Key-Eintraegen
+                          # (und damit nach LocalFlow) an die Reihe kommt
+    FRESH_BOOT_S = 300.0  # so lange gilt das System als "gerade gebootet"
 
     def __init__(self, model: str = "gemma3:4b", base_url: str = "http://127.0.0.1:11434",
                  timeout: float = 15.0, keep_alive: str = "2h"):
@@ -78,6 +88,52 @@ class Cleaner:
             pass  # ohne psutil-Antwort lieber wie frueher: notfalls spawnen
         return False
 
+    @staticmethod
+    def _tray_app_running() -> bool:
+        """Laeuft Ollamas eigene Tray-App? Sie ist der rechtmaessige Besitzer
+        von Port 11434: startet den Server, ueberwacht ihn und startet ihn bei
+        Bedarf neu."""
+        try:
+            import psutil
+            for p in psutil.process_iter(["name"]):
+                if (p.info.get("name") or "").lower() == TRAY_APP_NAME:
+                    return True
+        except Exception:  # noqa: BLE001
+            pass
+        return False
+
+    @staticmethod
+    def _tray_app_path() -> str | None:
+        """Pfad zu Ollamas Tray-App (liegt neben der ollama.exe aus dem PATH)."""
+        if sys.platform != "win32":
+            return None
+        exe = shutil.which("ollama")
+        if not exe:
+            return None
+        path = os.path.join(os.path.dirname(exe), TRAY_APP_NAME)
+        return path if os.path.exists(path) else None
+
+    @classmethod
+    def _system_just_booted(cls) -> bool:
+        try:
+            import psutil
+            return (time.time() - psutil.boot_time()) < cls.FRESH_BOOT_S
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _spawn(self, args: list[str]):
+        """Prozess losgeloest und ohne Konsolenfenster starten."""
+        kwargs = dict(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if sys.platform == "win32":
+            # DETACHED_PROCESS ist der wirksame Teil (eigenes, konsolenloses
+            # Leben ueber unser Prozessende hinaus); CREATE_NO_WINDOW wird in
+            # Kombination laut Win32-Doku ignoriert, schadet aber nicht.
+            kwargs["creationflags"] = (subprocess.CREATE_NO_WINDOW
+                                       | subprocess.DETACHED_PROCESS)
+        else:  # POSIX: vom eigenen Prozess entkoppeln
+            kwargs["start_new_session"] = True
+        subprocess.Popen(args, **kwargs)
+
     def _wait_healthy(self, seconds: float) -> bool:
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
@@ -87,21 +143,67 @@ class Cleaner:
         return False
 
     def ensure_running(self) -> bool:
-        """Ollama-Server pruefen und bei Bedarf starten - garantiert ohne
-        Doppelstart: parallele Aufrufe (z.B. App-Warmup + Settings-Save)
-        serialisiert ein Lock, und existiert schon ein Ollama-Prozess,
-        wird nur auf dessen Server gewartet statt einen zweiten zu spawnen.
-        (Ein zweiter Server waere auch OS-seitig chancenlos - Port 11434
-        kann nur einmal gebunden werden - aber der Versuch unterbleibt.)"""
+        """Ollama-Server bereitstellen - als GAST, nicht als Besitzer.
+
+        Leitregel: Existiert Ollamas eigene Tray-App, gehoert ihr Port 11434.
+        LocalFlow wartet dann nur und startet NIEMALS einen eigenen Server.
+        Warum das so streng ist (Feldbefund 2026-07-29): Beim Booten laufen
+        die Run-Key-Eintraege (LocalFlow) VOR dem Autostart-Ordner (Ollama).
+        LocalFlow fand also kurz keinen Ollama-Prozess, startete selbst
+        `ollama serve` und belegte den Port. Ollamas Tray-App kam Sekunden
+        spaeter, konnte nie binden und versuchte es endlos neu: 160.111
+        Fehlstarts in zwei Tagen, jeder ein kurzlebiges Konsolenfenster -
+        das war der Fenster-Sturm beim Reboot.
+
+        Parallele Aufrufe (App-Warmup, Settings-Save, Diktat-Vorwaermung)
+        serialisiert weiterhin ein Lock."""
         if self.is_healthy():
             return True
         with self._start_lock:
             if self.is_healthy():  # ein paralleler Aufruf war schneller
                 return True
+            # Kurz nach dem Systemstart deutlich laenger warten: Ollamas
+            # Autostart ist dann typischerweise noch gar nicht dran gewesen.
+            wait_s = (self.BOOT_GRACE_S if self._system_just_booted()
+                      else self.BOOT_WAIT_S)
+
+            # 1. Tray-App lebt -> ihr gehoert der Port. Nur warten.
+            if self._tray_app_running():
+                log.info("Ollama-Tray-App laeuft - warte bis zu %.0fs auf ihren "
+                         "Server (kein eigener Start)", wait_s)
+                if self._wait_healthy(wait_s):
+                    log.info("Ollama-Server bereit")
+                    return True
+                log.warning("Ollama-Tray-App laeuft, ihr Server antwortet aber "
+                            "nicht - KEIN eigener Start (das wuerde ihr den Port "
+                            "wegnehmen), naechster Versuch beim naechsten Diktat")
+                return False
+
+            # 2. Tray-App installiert, laeuft aber nicht -> sie starten.
+            #    Sie ist eine GUI-App (kein Konsolenfenster) und verwaltet
+            #    ihren Server selbst; damit gibt es genau einen Besitzer.
+            tray = self._tray_app_path()
+            if tray:
+                log.info("Starte Ollamas Tray-App (sie bringt den Server mit)...")
+                try:
+                    self._spawn([tray])
+                except OSError as e:  # noqa: BLE001
+                    log.warning("Tray-App-Start fehlgeschlagen (%s) - versuche "
+                                "eigenen Serverstart", e)
+                else:
+                    if self._wait_healthy(wait_s):
+                        log.info("Ollama-Server bereit (Tray-App)")
+                        return True
+                    log.warning("Tray-App gestartet, Server noch nicht bereit - "
+                                "naechster Versuch beim naechsten Diktat")
+                    return False
+
+            # 3. Keine Tray-App (z.B. reine Server-Installation): hier gibt es
+            #    keinen Konkurrenten um den Port, also wie bisher selbst starten.
             if self._ollama_process_running():
                 log.info("Ollama-Prozess existiert schon - warte auf den Server "
                          "statt einen zweiten zu starten...")
-                if self._wait_healthy(self.BOOT_WAIT_S):
+                if self._wait_healthy(wait_s):
                     log.info("Ollama-Server bereit")
                     return True
                 log.warning("Laufender Ollama-Prozess antwortet nicht - "
@@ -109,17 +211,11 @@ class Cleaner:
             else:
                 log.info("Ollama nicht erreichbar, versuche Start...")
             try:
-                kwargs = dict(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                if sys.platform == "win32":
-                    kwargs["creationflags"] = (subprocess.CREATE_NO_WINDOW
-                                               | subprocess.DETACHED_PROCESS)
-                else:  # POSIX: vom eigenen Prozess entkoppeln
-                    kwargs["start_new_session"] = True
-                subprocess.Popen(["ollama", "serve"], **kwargs)
+                self._spawn(["ollama", "serve"])
             except FileNotFoundError:
                 log.error("ollama.exe nicht im PATH - AI-Cleanup nicht verfuegbar")
                 return False
-            if self._wait_healthy(self.BOOT_WAIT_S):
+            if self._wait_healthy(wait_s):
                 log.info("Ollama gestartet")
                 return True
             log.error("Ollama-Start fehlgeschlagen (Timeout)")

@@ -45,14 +45,21 @@ class Pipeline:
         self._infer_lock = threading.Lock()
 
     def load(self):
-        """Modelle laden (blockiert; beim App-Start im Hintergrund aufrufen)."""
+        """Modelle laden (blockiert; beim App-Start im Hintergrund aufrufen).
+
+        Der Ollama-Warmup laeuft bewusst in einem EIGENEN Thread: er darf
+        nach einem Systemstart bis zu 90s auf Ollamas Tray-App warten
+        (cleanup.ensure_running), und solange darf das Diktieren nicht
+        blockiert sein - STT ist davon unabhaengig. Bis das Cleanup steht,
+        liefert die Pipeline Rohtext."""
         self.transcriber = make_transcriber(self.settings.get("whisper_model"))
         self.cleaner = Cleaner(
             model=self.settings.get("ollama_model"),
             base_url=self.settings.get("ollama_url"),
             timeout=self.settings.get("cleanup_timeout_s"),
         )
-        self.cleaner.warmup()
+        threading.Thread(target=self.cleaner.warmup, daemon=True,
+                         name="localflow-cleanup-warmup").start()
 
     def _initial_prompt(self, entries: list[dict]) -> str | None:
         """Bias-Woerter (Eigennamen etc.) als Whisper-Hinweis.
