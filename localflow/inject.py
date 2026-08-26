@@ -73,21 +73,72 @@ PASTE_CLIPBOARD_ONLY = "clipboard_only"   # Ziel nicht fokussierbar, Text liegt 
 PASTE_FAILED = "failed"
 
 
+HWND_MESSAGE = -3
+
+_owner_hwnd: int | None = None
+_owner_lock = threading.Lock()
+
+
+def _clipboard_owner() -> int:
+    """Unsichtbares Message-only-Fenster als Clipboard-Besitzer.
+
+    DIE Ursache des Clipboard-Datenverlusts: OpenClipboard OHNE Fenster-Handle
+    laesst EmptyClipboard den Besitzer auf NULL setzen - und danach schlaegt
+    SetClipboardData fehl (so bei EmptyClipboard dokumentiert). Im Restore
+    heisst das: EmptyClipboard hat den Inhalt des Nutzers schon geloescht, das
+    Zurueckschreiben scheitert, das kopierte Bild ist weg. Im Stresstest
+    reproduziert (ERROR_CLIPBOARD_NOT_OPEN 1418 auf SetClipboardData). Mit
+    einem echten Besitzerfenster kann das nicht passieren.
+
+    Message-only-Fenster brauchen keine Nachrichtenschleife: wir liefern alle
+    Formate sofort (kein delayed rendering), es gibt also nichts zu bedienen."""
+    global _owner_hwnd
+    with _owner_lock:
+        if _owner_hwnd is None:
+            _owner_hwnd = win32gui.CreateWindowEx(
+                0, "STATIC", "LocalFlowClipboardOwner", 0,
+                0, 0, 0, 0, HWND_MESSAGE, 0, 0, None)
+        return _owner_hwnd
+
+
 def _open_clipboard(retries: int = 6) -> bool:
     for attempt in range(retries):
         try:
-            win32clipboard.OpenClipboard()
+            win32clipboard.OpenClipboard(_clipboard_owner())
             return True
         except Exception:  # noqa: BLE001 - kann kurz von anderer App gesperrt sein
             time.sleep(0.02 * (attempt + 1))
     return False
 
 
-def _snapshot_clipboard() -> dict:
-    """Aktuelle Clipboard-Inhalte der erhaltenen Formate sichern."""
-    snap: dict = {}
+def _close_clipboard():
+    """CloseClipboard darf NIE werfen.
+
+    Es sass in mehreren finally-Bloecken: warf es dort, riss die Ausnahme die
+    ganze Sicherungs-/Restore-Operation mit - im Diktat-Pfad bis hoch in
+    _process_inner ("Verarbeitung fehlgeschlagen"), waehrend der diktierte
+    Text im Clipboard liegenblieb. Gemessen im Stresstest: ERROR_CLIPBOARD_
+    NOT_OPEN (1418) in 0,05-0,2 % der Zyklen, weil die Zwischenablage global
+    ist und jede andere App sie zwischendurch greifen kann."""
+    try:
+        win32clipboard.CloseClipboard()
+    except Exception:  # noqa: BLE001
+        log.debug("CloseClipboard fehlgeschlagen", exc_info=True)
+
+
+def _snapshot_clipboard() -> dict | None:
+    """Aktuelle Clipboard-Inhalte der erhaltenen Formate sichern.
+
+    Rueckgabe: dict (auch leer, wenn das Clipboard wirklich leer war) oder
+    None, wenn das Clipboard nicht zu oeffnen war. Der Unterschied ist
+    wichtig: frueher kam in BEIDEN Faellen {} zurueck, und paste_text hat
+    daraus "war eh leer" geschlossen und am Ende _clear_clipboard() gerufen -
+    ein kopiertes Bild des Nutzers war damit weg (im Stresstest reproduziert).
+    """
     if not _open_clipboard():
-        return snap
+        log.warning("Clipboard-Snapshot: nicht zu oeffnen - Inhalt bleibt unangetastet")
+        return None
+    snap: dict = {}
     try:
         for fmt in PRESERVED_FORMATS:
             if not win32clipboard.IsClipboardFormatAvailable(fmt):
@@ -97,7 +148,7 @@ def _snapshot_clipboard() -> dict:
             except Exception:  # noqa: BLE001
                 pass
     finally:
-        win32clipboard.CloseClipboard()
+        _close_clipboard()
     return snap
 
 
@@ -125,7 +176,7 @@ def _restore_clipboard(snap: dict):
         # dort schon; ein Duplikat wuerde den Verlauf nur zumuellen.
         _mark_transient()
     finally:
-        win32clipboard.CloseClipboard()
+        _close_clipboard()
 
 
 _EXCLUDE_FORMATS: list[int] | None = None
@@ -159,14 +210,14 @@ def _mark_transient():
 def _set_clipboard_text(text: str, retries: int = 5):
     for attempt in range(retries):
         try:
-            win32clipboard.OpenClipboard()
+            win32clipboard.OpenClipboard(_clipboard_owner())
             try:
                 win32clipboard.EmptyClipboard()
                 win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, text)
                 _mark_transient()
                 return
             finally:
-                win32clipboard.CloseClipboard()
+                _close_clipboard()
         except Exception:  # noqa: BLE001
             time.sleep(0.03 * (attempt + 1))
     raise RuntimeError("Clipboard konnte nicht gesetzt werden")
@@ -181,7 +232,7 @@ def _clear_clipboard():
     try:
         win32clipboard.EmptyClipboard()
     finally:
-        win32clipboard.CloseClipboard()
+        _close_clipboard()
 
 
 def _get_clipboard_text() -> str | None:
@@ -195,7 +246,7 @@ def _get_clipboard_text() -> str | None:
                 return None
         return None
     finally:
-        win32clipboard.CloseClipboard()
+        _close_clipboard()
 
 
 def _tap(vk: int):
@@ -407,14 +458,24 @@ def paste_text(text: str, restore_delay: float = 1.0, target_hwnd: int | None = 
         except RuntimeError as e:
             log.error("%s", e)
             return PASTE_FAILED
-        time.sleep(0.05)  # Clipboard-Besitzwechsel settlen lassen
-        _send_ctrl_v()
-        # Der Ziel-App Zeit geben, das Paste zu verarbeiten, bevor restauriert wird
-        time.sleep(restore_delay)
-        if snap:
-            _restore_clipboard(snap)
-        else:
-            # Clipboard war vorher leer/nicht sicherbar: leeren statt das
-            # Diktat dauerhaft liegen zu lassen.
-            _clear_clipboard()
+        try:
+            time.sleep(0.05)  # Clipboard-Besitzwechsel settlen lassen
+            _send_ctrl_v()
+            # Der Ziel-App Zeit geben, das Paste zu verarbeiten, bevor restauriert wird
+            time.sleep(restore_delay)
+        finally:
+            # Ins finally, damit der Nutzerinhalt auch dann zurueckkommt, wenn
+            # das Senden von Strg+V scheitert - sonst bliebe das Diktat im
+            # Clipboard und das Kopierte waere verloren.
+            if snap is None:
+                # Snapshot war nicht moeglich (Clipboard von anderer App
+                # gesperrt): wir wissen NICHT, was drin war. Nichts anfassen
+                # ist die einzig sichere Option - lieber das Diktat im
+                # Clipboard als ein geloeschtes Bild des Nutzers.
+                log.warning("Clipboard war nicht sicherbar - bleibt unangetastet")
+            elif snap:
+                _restore_clipboard(snap)
+            else:
+                # Clipboard war nachweislich leer: Diktat nicht liegen lassen.
+                _clear_clipboard()
         return PASTE_OK
