@@ -3,6 +3,7 @@
 Start:  .venv\\Scripts\\pythonw.exe -m localflow.main
 """
 
+import faulthandler
 import logging
 import logging.handlers
 import os
@@ -28,6 +29,45 @@ from .settings import APP_DIR, Settings
 log = logging.getLogger("localflow")
 
 
+# Bleibt bewusst global offen: faulthandler schreibt beim Absturz direkt in
+# diesen Dateideskriptor, ein geschlossenes/GC-tes Objekt wuerde die Diagnose
+# genau dann verschlucken, wenn man sie braucht.
+_crash_file = None
+
+
+def setup_crash_log():
+    """Native Abstuerze und stille Thread-Exceptions sichtbar machen.
+
+    Feldbefund 2026-08-26: die App verschwand ohne eine einzige Zeile im Log.
+    Windows meldete APPCRASH 0xc0000374 (Heap-Korruption in einer nativen
+    Erweiterung) - so etwas faengt kein `except Exception`. Unter pythonw.exe
+    gibt es zudem KEIN stderr, d.h. jeder Traceback ging bisher ins Leere.
+    Beides landet ab jetzt in logs/crash.log:
+      * faulthandler -> C-Level-Stack ALLER Threads im Moment des Absturzes
+      * sys.stderr   -> Tracebacks, die an der Logging-Konfiguration vorbeigehen
+      * excepthooks  -> unbehandelte Exceptions in Haupt- und Worker-Threads
+    """
+    global _crash_file
+    path = os.path.join(APP_DIR, "logs", "crash.log")
+    try:
+        _crash_file = open(path, "a", buffering=1, encoding="utf-8", errors="replace")
+    except OSError:
+        return
+    _crash_file.write("\n===== Start %s pid=%d v%s =====\n"
+                      % (time.strftime("%Y-%m-%d %H:%M:%S"), os.getpid(), __version__))
+    faulthandler.enable(file=_crash_file, all_threads=True)
+    if sys.stderr is None:  # pythonw.exe: sonst gehen Tracebacks verloren
+        sys.stderr = _crash_file
+
+    def _hook(exc_type, exc, tb, thread=None):
+        where = f" in Thread {thread.name}" if thread is not None else ""
+        log.critical("Unbehandelte Exception%s", where, exc_info=(exc_type, exc, tb))
+
+    sys.excepthook = _hook
+    threading.excepthook = lambda a: _hook(a.exc_type, a.exc_value, a.exc_traceback,
+                                           a.thread)
+
+
 def setup_logging():
     os.makedirs(os.path.join(APP_DIR, "logs"), exist_ok=True)
     handler = logging.handlers.RotatingFileHandler(
@@ -42,6 +82,7 @@ def setup_logging():
         console = logging.StreamHandler()
         console.setFormatter(fmt)
         root.addHandler(console)
+    setup_crash_log()
 
 
 class LocalFlowApp:
