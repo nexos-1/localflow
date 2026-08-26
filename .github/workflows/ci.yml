@@ -27,9 +27,18 @@ jobs:
           python tests/test_cleanup_start.py
           python tests/test_darwin_port.py
           python tests/test_orphan_guard.py
-      # test_overlay_watchdog.py laeuft bewusst NICHT hier: die Runner-
-      # Fensterstation zerstoert Tk-Fenster sofort (kein echter Desktop) -
-      # der Test braucht eine interaktive Windows-Session (lokal ausfuehren).
+      # Diese laufen bewusst NICHT hier - sie brauchen eine interaktive
+      # Windows-Session (echter Desktop, Fensterfokus, synthetische Eingaben).
+      # Auf der Runner-Fensterstation gibt es das nicht. Lokal ausfuehren:
+      #   test_overlay_watchdog.py    Tk-Fenster werden sofort zerstoert
+      #   test_clipboard.py           echte Zwischenablage
+      #   test_clipboard_owner.py     Besitzerfenster + Zwischenablage
+      #   test_e2e_paste_local.py     Strg+V in ein echtes Fenster
+      #   test_type_text.py           SendInput in ein echtes Fenster
+      # Den Vertrag zwischen main.py und den Injektoren deckt dagegen
+      # test_darwin_port.py ab, und der laeuft hier - er hat den fehlenden
+      # type_text im darwin-Backend gefunden, bevor es jemand auf einem Mac
+      # gemerkt haette.
       - name: Backend-Smoke (win32)
         run: python -c "from localflow.platform import get_backends; print(sorted(vars(get_backends())))"
 

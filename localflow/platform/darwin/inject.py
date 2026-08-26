@@ -152,6 +152,52 @@ def paste_text(text: str, restore_delay: float = 1.0, target_hwnd=None,
         return PASTE_OK
 
 
+def type_text(text: str, target_hwnd=None, smart_spacing: bool = False) -> str:
+    """Text TIPPEN statt einfuegen - ohne die Zwischenablage anzufassen.
+
+    Gegenstueck zu SendInput/KEYEVENTF_UNICODE auf Windows: ein Tastatur-Event
+    ohne Keycode, dem per CGEventKeyboardSetUnicodeString der Text angehaengt
+    wird. Das umgeht die Tastaturbelegung - Umlaute und Emoji kommen so an,
+    wie sie sind.
+
+    Warum es das gibt: das Einfuegen laeuft zwangslaeufig ueber die
+    Zwischenablage, und Programme mit Zwischenablage-Ueberwachung melden dann
+    bei jedem Diktat eine Aenderung. Siehe win32-Gegenstueck in inject.py.
+
+    In Stuecke zerlegt, weil CGEventKeyboardSetUnicodeString bei sehr langen
+    Strings unzuverlaessig wird; main.py schickt ohnehin nur kurze Diktate
+    hierher (Einstellung type_max_chars).
+
+    smart_spacing wird - wie bei paste_text - auf darwin noch nicht ausgewertet
+    (Caret-Sonde: Phase 3b, siehe PORTING.md).
+    """
+    if not text:
+        return PASTE_FAILED
+    import Quartz
+    with _paste_lock:
+        if target_hwnd is not None and not focus_window(target_hwnd):
+            log.warning("Ziel-App %s nicht aktivierbar - nicht getippt", target_hwnd)
+            return PASTE_FAILED
+        injection_active.set()
+        try:
+            for i in range(0, len(text), 20):
+                stueck = text[i:i + 20]
+                for down in (True, False):
+                    evt = Quartz.CGEventCreateKeyboardEvent(None, 0, down)
+                    if evt is None:
+                        log.error("CGEventCreateKeyboardEvent lieferte None")
+                        return PASTE_FAILED
+                    Quartz.CGEventKeyboardSetUnicodeString(evt, len(stueck), stueck)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, evt)
+                time.sleep(0.005)
+        except Exception:  # noqa: BLE001
+            log.exception("Tippen fehlgeschlagen")
+            return PASTE_FAILED
+        finally:
+            injection_active.clear()
+        return PASTE_OK
+
+
 def press_keys(keys: list[str], target_hwnd=None, gap: float = 0.04):
     """Sprachbefehl-Tasten senden - wie auf Windows NUR, wenn das Ziel
     wirklich fokussiert werden konnte."""
