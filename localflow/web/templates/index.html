@@ -138,6 +138,12 @@
       <div class="checkrow"><input type="checkbox" id="s-duck_audio"><span>System-Audio während Aufnahme stummschalten (YouTube, Spotify …)</span></div>
       <div class="checkrow"><input type="checkbox" id="s-live_preview"><span>Live-Vorschau: Transkript schon während des Sprechens in der Overlay-Pille zeigen (der finale, bereinigte Text wird erst beim Loslassen eingefügt)</span></div>
       <div class="checkrow"><input type="checkbox" id="s-smart_spacing"><span>Smart Spacing: automatisch ein Leerzeichen einfügen, wenn das Diktat direkt an bestehenden Text ansetzt (in Terminals automatisch aus)</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-type_enabled"><span>Kurze Diktate <b>tippen</b> statt einfügen: lässt die Zwischenablage komplett unberührt (Programme mit Zwischenablage-Überwachung melden sonst bei jedem Diktat eine Änderung). Dafür gibt es beim Tippen kein Smart Spacing.</span></div>
+      <div class="checkrow" style="margin-left:24px">
+        <span class="dim">bis</span>
+        <input type="number" id="s-type_max_chars" min="1" max="5000" step="50" style="width:90px">
+        <span class="dim">Zeichen tippen, längere Diktate einfügen</span>
+      </div>
       <div class="checkrow"><input type="checkbox" id="s-autostart"><span>Mit Windows starten</span></div>
       <div style="margin-top:16px"><button class="btn" id="s-save">Speichern</button></div>
     </div>
@@ -355,6 +361,7 @@ function collectVoiceCommands() {
 document.addEventListener("click", e => {
   if (e.target && e.target.id === "voice-cmd-add")
     $("#voice-cmd-rows").append(voiceRow("enter", []));
+  if (e.target && e.target.id === "s-type_enabled") syncTypeRow();
 });
 
 const FONT_CHOICES = ["Segoe UI", "Segoe UI Semibold", "Arial", "Calibri",
@@ -390,6 +397,13 @@ function renderDesign(s) {
   if (g) { g.checked = !!s.glass_pill; g.onchange = () => liveSave({glass_pill: g.checked}); }
 }
 
+function syncTypeRow() {
+  const on = $("#s-type_enabled").checked;
+  const box = $("#s-type_max_chars");
+  box.disabled = !on;
+  box.parentElement.style.opacity = on ? "1" : "0.45";
+}
+
 async function loadSettings() {
   const [s, devices, models] = await Promise.all([
     (await fetch("/api/settings")).json(),
@@ -416,6 +430,13 @@ async function loadSettings() {
   $("#s-duck_audio").checked = !!s.duck_audio;
   $("#s-live_preview").checked = !!s.live_preview;
   $("#s-smart_spacing").checked = !!s.smart_spacing;
+  // Getippt/eingefuegt haengt an EINER Zahl (0 = aus). Die Checkbox ist nur
+  // die bequeme Ansicht davon; das Zahlenfeld behaelt beim Ausschalten den
+  // letzten sinnvollen Wert, damit er beim Wiedereinschalten noch da ist.
+  const typeMax = Number(s.type_max_chars) || 0;
+  $("#s-type_enabled").checked = typeMax > 0;
+  $("#s-type_max_chars").value = String(typeMax > 0 ? typeMax : 200);
+  syncTypeRow();
   renderDesign(s);
   $("#s-swallow_mouse_hotkey").checked = !!s.swallow_mouse_hotkey;
   $("#s-voice_commands_enabled").checked = !!s.voice_commands_enabled;
@@ -451,6 +472,9 @@ $("#s-save").onclick = async () => {
     duck_audio: $("#s-duck_audio").checked,
     live_preview: $("#s-live_preview").checked,
     smart_spacing: $("#s-smart_spacing").checked,
+    // 0 = Tippen aus. Unter 1 waere sinnlos, darum untere Grenze bei 1.
+    type_max_chars: $("#s-type_enabled").checked
+      ? Math.max(1, parseInt($("#s-type_max_chars").value, 10) || 200) : 0,
     swallow_mouse_hotkey: $("#s-swallow_mouse_hotkey").checked,
     voice_commands_enabled: $("#s-voice_commands_enabled").checked,
     voice_commands: collectVoiceCommands(),

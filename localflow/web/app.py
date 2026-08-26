@@ -14,6 +14,7 @@ EDITABLE_SETTINGS = [
     "duck_audio", "duck_volume", "swallow_mouse_hotkey", "max_duration_s",
     "voice_commands_enabled", "voice_commands", "live_preview", "glass_pill",
     "overlay_font", "overlay_font_size", "overlay_theme", "smart_spacing",
+    "type_max_chars",
 ]
 
 
@@ -25,7 +26,7 @@ _BOOL_SETTINGS = {"ai_cleanup", "play_sounds", "duck_audio", "swallow_mouse_hotk
                   "voice_commands_enabled", "live_preview", "glass_pill",
                   "smart_spacing"}
 _INT_SETTINGS = {"beam_size", "cleanup_min_words", "tail_ms", "overlay_font_size",
-                 "max_duration_s"}
+                 "max_duration_s", "type_max_chars"}
 _FLOAT_SETTINGS = {"min_duration_s", "paste_restore_delay", "cleanup_timeout_s",
                    "duck_volume"}
 _STR_SETTINGS = {"hotkey", "hotkey2", "toggle_hotkey", "ptt_mode", "language",
