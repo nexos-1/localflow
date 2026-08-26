@@ -11,8 +11,8 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       # Bewusst NICHT requirements.txt (CUDA-Wheels ~1 GB): nur was die
@@ -45,8 +45,8 @@ jobs:
   macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install numpy sounddevice requests psutil pynput==1.8.2 pyobjc-framework-Cocoa==12.2.1 pyobjc-framework-Quartz==12.2.1
