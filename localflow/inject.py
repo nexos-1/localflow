@@ -9,6 +9,7 @@ des Nutzers zerstoert.
 """
 
 import ctypes
+import ctypes.wintypes as wintypes
 import logging
 import struct
 import threading
@@ -39,6 +40,7 @@ VK_C = 0x43
 VK_V = 0x56
 VK_LEFT = 0x25
 VK_RIGHT = 0x27
+VK_RETURN = 0x0D
 KEYEVENTF_KEYUP = 0x0002
 
 # Smart Spacing wird in diesen Apps NIE probiert: die Sonde sendet Strg+C,
@@ -358,6 +360,98 @@ def _send_ctrl_v():
         time.sleep(0.03)  # Hook-Verarbeitung der Events abwarten
     finally:
         injection_active.clear()
+
+
+# --- Tippen statt Einfuegen (SendInput mit Unicode-Events) ---
+#
+# Der Paste-Weg geht zwangslaeufig ueber die Zwischenablage und macht LocalFlow
+# zu deren Besitzer. Programme mit Zwischenablage-Ueberwachung melden dann bei
+# JEDEM Diktat eine Aenderung. Getippte Zeichen fassen sie gar nicht an.
+
+INPUT_KEYBOARD = 1
+KEYEVENTF_UNICODE = 0x0004
+
+
+class _KEYBDINPUT(ctypes.Structure):
+    _fields_ = [("wVk", wintypes.WORD), ("wScan", wintypes.WORD),
+                ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD),
+                ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong))]
+
+
+class _INPUTUNION(ctypes.Union):
+    # Die Union ist so gross wie ihr groesstes Mitglied (MOUSEINPUT, 32 Byte
+    # auf x64). Zu klein dimensioniert wuerde SendInput die Struktur ablehnen.
+    _fields_ = [("ki", _KEYBDINPUT), ("_pad", ctypes.c_ubyte * 32)]
+
+
+class _INPUT(ctypes.Structure):
+    _anonymous_ = ("u",)
+    _fields_ = [("type", wintypes.DWORD), ("u", _INPUTUNION)]
+
+
+def _unicode_events(text: str) -> list[_INPUT]:
+    """Ein Down/Up-Paar je UTF-16-Codeeinheit.
+
+    Bewusst ueber UTF-16-Codeeinheiten statt ueber Python-Zeichen: Emoji und
+    andere Zeichen oberhalb der BMP brauchen ihr Surrogatpaar als ZWEI Events,
+    sonst kommt Kraut und Rueben an. Zeilenumbrueche gehen als echtes
+    VK_RETURN - ein getipptes \\n fuegen viele Eingabefelder nicht ein."""
+    events: list[_INPUT] = []
+    for ch in text:
+        if ch in ("\r", "\n"):
+            if ch == "\r":
+                continue  # \r\n nicht doppelt
+            for up in (0, KEYEVENTF_KEYUP):
+                ev = _INPUT(type=INPUT_KEYBOARD)
+                ev.ki = _KEYBDINPUT(wVk=VK_RETURN, wScan=0, dwFlags=up,
+                                    time=0, dwExtraInfo=None)
+                events.append(ev)
+            continue
+        raw = ch.encode("utf-16-le")
+        for i in range(0, len(raw), 2):
+            code = raw[i] | (raw[i + 1] << 8)
+            for up in (0, KEYEVENTF_KEYUP):
+                ev = _INPUT(type=INPUT_KEYBOARD)
+                ev.ki = _KEYBDINPUT(wVk=0, wScan=code,
+                                    dwFlags=KEYEVENTF_UNICODE | up,
+                                    time=0, dwExtraInfo=None)
+                events.append(ev)
+    return events
+
+
+def type_text(text: str, target_hwnd: int | None = None,
+              smart_spacing: bool = False) -> str:
+    """Text ins Zielfenster TIPPEN, ohne die Zwischenablage anzufassen.
+
+    Gibt PASTE_OK oder PASTE_FAILED zurueck (gleiche Codes wie paste_text,
+    damit der Aufrufer nicht unterscheiden muss).
+
+    smart_spacing wird hier bewusst NICHT unterstuetzt: die Sonde
+    (_probe_char_before_caret) misst ueber die Zwischenablage und wuerde genau
+    den Vorteil dieses Weges zunichtemachen. Der Aufrufer entscheidet.
+    """
+    if not text:
+        return PASTE_FAILED
+    with _paste_lock:
+        if target_hwnd is not None and not focus_window(target_hwnd):
+            log.warning("Zielfenster %s nicht fokussierbar - nicht getippt", target_hwnd)
+            return PASTE_FAILED
+        events = _unicode_events(text)
+        if not events:
+            return PASTE_FAILED
+        injection_active.set()
+        try:
+            arr = (_INPUT * len(events))(*events)
+            sent = ctypes.windll.user32.SendInput(
+                len(events), ctypes.byref(arr), ctypes.sizeof(_INPUT))
+            if sent != len(events):
+                log.error("SendInput hat nur %d von %d Events gesendet (Fehler %d)",
+                          sent, len(events), ctypes.get_last_error())
+                return PASTE_FAILED
+            time.sleep(0.03)  # Hook-Verarbeitung der Events abwarten
+        finally:
+            injection_active.clear()
+        return PASTE_OK
 
 
 def press_keys(keys: list[str], target_hwnd: int | None = None, gap: float = 0.04):

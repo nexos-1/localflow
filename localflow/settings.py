@@ -50,6 +50,15 @@ DEFAULTS = {
     "max_duration_s": 300,          # Auto-Stopp (vergessenes Freisprechen)
     "dashboard_port": 5111,
     "paste_restore_delay": 1.0,
+    # Kurze Diktate TIPPEN statt einfuegen (SendInput mit Unicode-Events).
+    # Das Einfuegen laeuft ueber die Zwischenablage: sichern -> Diktat
+    # hineinlegen -> Strg+V -> zurueckschreiben. Dabei wird LocalFlow zum
+    # Besitzer der Zwischenablage, und Programme mit Zwischenablage-Ueber-
+    # wachung (z.B. Claude Code) melden bei JEDEM Diktat eine Aenderung.
+    # Getippt wird die Zwischenablage gar nicht angefasst.
+    # Zeichen bis zu dieser Laenge werden getippt, laengere weiter eingefuegt
+    # (Tippen ist bei langen Texten spuerbar langsamer). 0 = immer einfuegen.
+    "type_max_chars": 200,
     "cleanup_timeout_s": 8.0,
     "cleanup_min_words": 4,         # kuerzere Texte nicht durchs LLM (Whisper punktiert selbst)
     "tail_ms": 150,                 # Audio nach dem Loslassen mitnehmen (letzte Silbe)

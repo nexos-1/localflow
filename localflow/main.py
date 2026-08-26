@@ -468,10 +468,20 @@ class LocalFlowApp:
                 smart = (bool(self.settings.get("smart_spacing"))
                          and (app_name or "").lower()
                          not in inj.SMART_SPACING_SKIP_APPS)
-                status = inj.paste_text(result.final_text,
-                                        restore_delay=self.settings.get("paste_restore_delay"),
-                                        target_hwnd=target_hwnd,
-                                        smart_spacing=smart)
+                # Kurze Diktate tippen statt einfuegen: das Einfuegen laeuft
+                # ueber die Zwischenablage und macht uns zu deren Besitzer -
+                # Programme mit Zwischenablage-Ueberwachung melden dann bei
+                # jedem Diktat eine Aenderung. Getippt bleibt sie unberuehrt.
+                # Preis: kein Smart Spacing, denn dessen Sonde misst ihrerseits
+                # ueber die Zwischenablage.
+                type_max = self.settings.get("type_max_chars") or 0
+                if 0 < len(result.final_text) <= type_max:
+                    status = inj.type_text(result.final_text, target_hwnd=target_hwnd)
+                else:
+                    status = inj.paste_text(result.final_text,
+                                            restore_delay=self.settings.get("paste_restore_delay"),
+                                            target_hwnd=target_hwnd,
+                                            smart_spacing=smart)
             # Sprachbefehle NACH dem Einfuegen ausfuehren (Text zuerst, dann
             # z.B. Enter zum Absenden) - aber NUR, wenn das Paste wirklich im
             # Zielfenster gelandet ist. Bei clipboard_only/failed waere ein
