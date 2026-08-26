@@ -77,27 +77,55 @@ HWND_MESSAGE = -3
 
 _owner_hwnd: int | None = None
 _owner_lock = threading.Lock()
+_owner_ready = threading.Event()
+
+
+def _owner_thread():
+    """Besitzt das Clipboard-Fenster und bedient seine Nachrichtenschleife.
+
+    Eigener, dauerhaft laufender Thread - und das ist keine Kosmetik: Windows
+    zerstoert ein Fenster, sobald der erzeugende Thread endet. Wird das Fenster
+    in einem Diktat-Worker angelegt, ist es nach dessen Ende weg und JEDES
+    weitere OpenClipboard laeuft gegen ein ungueltiges Handle. Genau so ist es
+    im Feld passiert: erstes Diktat ok, alle folgenden "Clipboard konnte nicht
+    gesetzt werden" (siehe tests/test_clipboard_owner.py, Fall "Fenster
+    ueberlebt den erzeugenden Thread").
+
+    PumpMessages blockiert in GetMessage und kostet dadurch nichts. Es bedient
+    zugleich WM_DESTROYCLIPBOARD & Co: ein Fenster ohne Nachrichtenschleife
+    laesst fremde Prozesse in ihre SendMessage-Timeouts laufen."""
+    global _owner_hwnd
+    try:
+        _owner_hwnd = win32gui.CreateWindowEx(
+            0, "STATIC", "LocalFlowClipboardOwner", 0,
+            0, 0, 0, 0, HWND_MESSAGE, 0, 0, None)
+    finally:
+        _owner_ready.set()          # auch im Fehlerfall aufwecken
+    win32gui.PumpMessages()
 
 
 def _clipboard_owner() -> int:
-    """Unsichtbares Message-only-Fenster als Clipboard-Besitzer.
+    """Fenster-Handle fuer OpenClipboard (0, wenn keins zu bekommen war).
 
-    DIE Ursache des Clipboard-Datenverlusts: OpenClipboard OHNE Fenster-Handle
-    laesst EmptyClipboard den Besitzer auf NULL setzen - und danach schlaegt
-    SetClipboardData fehl (so bei EmptyClipboard dokumentiert). Im Restore
-    heisst das: EmptyClipboard hat den Inhalt des Nutzers schon geloescht, das
-    Zurueckschreiben scheitert, das kopierte Bild ist weg. Im Stresstest
-    reproduziert (ERROR_CLIPBOARD_NOT_OPEN 1418 auf SetClipboardData). Mit
-    einem echten Besitzerfenster kann das nicht passieren.
-
-    Message-only-Fenster brauchen keine Nachrichtenschleife: wir liefern alle
-    Formate sofort (kein delayed rendering), es gibt also nichts zu bedienen."""
+    OpenClipboard OHNE Handle laesst EmptyClipboard den Clipboard-Besitzer auf
+    NULL setzen - und danach schlaegt SetClipboardData fehl (so bei
+    EmptyClipboard dokumentiert). Im Restore heisst das: der Inhalt des Nutzers
+    ist schon geloescht, das Zurueckschreiben scheitert, ein kopiertes Bild ist
+    weg. Mit einem echten Besitzerfenster kann das nicht passieren."""
     global _owner_hwnd
     with _owner_lock:
-        if _owner_hwnd is None:
-            _owner_hwnd = win32gui.CreateWindowEx(
-                0, "STATIC", "LocalFlowClipboardOwner", 0,
-                0, 0, 0, 0, HWND_MESSAGE, 0, 0, None)
+        if _owner_hwnd is not None and win32gui.IsWindow(_owner_hwnd):
+            return _owner_hwnd
+        # Kein/kaputtes Fenster: Besitzer-Thread (neu) starten.
+        _owner_hwnd = None
+        _owner_ready.clear()
+        threading.Thread(target=_owner_thread, daemon=True,
+                         name="localflow-clipboard-owner").start()
+        if not _owner_ready.wait(3) or not _owner_hwnd:
+            # Ohne Handle weiterarbeiten ist schlechter als mit, aber immer
+            # noch besser als gar kein Clipboard - Diktieren muss funktionieren.
+            log.error("Clipboard-Besitzerfenster nicht verfuegbar")
+            return 0
         return _owner_hwnd
 
 

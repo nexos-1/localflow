@@ -14,12 +14,15 @@ import os
 import struct
 import subprocess
 import sys
+import threading
 import time
 
 import win32clipboard
 import win32con
+import win32gui
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from localflow import inject
 from localflow.inject import (_clipboard_owner, _close_clipboard, _open_clipboard,
                               _restore_clipboard, _set_clipboard_text,
                               _snapshot_clipboard)
@@ -66,6 +69,41 @@ try:
         f"Clipboard-Besitzer ist {owner}, erwartet {_clipboard_owner()} - "
         "OpenClipboard wurde ohne Fenster-Handle gerufen (das war der Bug)")
     print("Clipboard-Besitzer ist unser Fenster OK (das war der Bug)")
+
+    # 2c. Das Besitzerfenster muss den erzeugenden Thread UEBERLEBEN.
+    #     Windows zerstoert ein Fenster mit seinem Thread. Diktate laufen in
+    #     kurzlebigen Worker-Threads - wurde das Fenster dort angelegt, war es
+    #     nach dem ersten Diktat weg und jedes weitere OpenClipboard lief gegen
+    #     ein ungueltiges Handle ("Clipboard konnte nicht gesetzt werden").
+    #     Im Feld beobachtet, von den Tests im Hauptthread nicht getroffen.
+    #     Wichtig: Zustand zuruecksetzen, damit der Worker das Fenster WIRKLICH
+    #     selbst anlegt. Ohne das bekaeme er nur das im Hauptthread erzeugte
+    #     Handle zurueck - der Test bestuende dann auch auf kaputtem Code
+    #     (genau so zuerst passiert).
+    inject._owner_hwnd = None
+    inject._owner_ready.clear()
+
+    aus_worker = {}
+
+    def im_worker():
+        aus_worker["hwnd"] = inject._clipboard_owner()
+
+    w = threading.Thread(target=im_worker, name="wegwerf-worker")
+    w.start()
+    w.join(5)
+    assert not w.is_alive(), "Worker-Thread haengt"
+    hwnd = aus_worker.get("hwnd")
+    assert hwnd, "Worker bekam kein Besitzerfenster"
+    time.sleep(0.3)  # Windows das Aufraeumen des toten Threads zugestehen
+    assert win32gui.IsWindow(hwnd), (
+        "Besitzerfenster mit dem erzeugenden Thread gestorben - "
+        "es gehoert auf einen dauerhaften Thread")
+    assert inject._clipboard_owner() == hwnd, "Besitzerfenster wechselte unerwartet"
+    assert _open_clipboard(), "Clipboard nach Thread-Ende nicht mehr zu oeffnen"
+    _close_clipboard()
+    _set_clipboard_text("NACH-WORKER")   # der Aufruf, der im Feld scheiterte
+    assert _snapshot_clipboard().get(win32con.CF_UNICODETEXT) == "NACH-WORKER"
+    print("Besitzerfenster ueberlebt den erzeugenden Thread OK")
 
     # 3. Ein Bild ueberlebt viele Diktat-Zyklen (Snapshot -> Diktat -> Restore)
     dib = _make_dib()

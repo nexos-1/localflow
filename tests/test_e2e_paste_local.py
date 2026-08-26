@@ -102,17 +102,43 @@ try:
     focus_now.set()
     time.sleep(0.4)
 
-    status = inject.paste_text(DIKTAT, restore_delay=1.0, target_hwnd=top)
-    time.sleep(0.5)
+    # MEHRERE Diktate aus jeweils FRISCHEN Worker-Threads - genau so laeuft es
+    # in der App (_process pro Diktat in einem eigenen, kurzlebigen Thread).
+    # Ein Fehler, der erst ab dem zweiten Diktat auftritt, wird nur so sichtbar:
+    # im Feld war das erste Diktat "ok" und jedes weitere "failed", weil das
+    # Clipboard-Besitzerfenster mit dem ersten Worker-Thread gestorben war.
+    # Zustand des Besitzerfensters zuruecksetzen, damit es der ERSTE
+    # Diktat-Worker anlegt - so wie in der frisch gestarteten App. Ohne das
+    # gehoert es noch dem Hauptthread (der oben das Bild gesetzt hat), der
+    # bleibt am Leben, und der Test bestuende auch auf kaputtem Code.
+    inject._owner_hwnd = None
+    inject._owner_ready.clear()
 
+    stati = []
+    for runde in range(3):
+        ergebnis = {}
+
+        def diktat(r=runde, out=ergebnis):
+            out["status"] = inject.paste_text(
+                "%s (%d)" % (DIKTAT, r), restore_delay=0.8, target_hwnd=top)
+
+        wt = threading.Thread(target=diktat, name="diktat-worker-%d" % runde)
+        wt.start()
+        wt.join(20)
+        assert not wt.is_alive(), "Diktat-Worker %d haengt" % runde
+        stati.append(ergebnis.get("status"))
+        print("Diktat %d -> %s" % (runde, stati[-1]))
+        time.sleep(0.3)
+
+    time.sleep(0.5)
     text = read_text(edit)
     nachher = inject._snapshot_clipboard()
-    print("paste_text ->", status)
     print("Feldinhalt: %r" % text)
     print("Clipboard danach: Formate=%s" % sorted(nachher.keys() if nachher else []))
 
-    assert status == inject.PASTE_OK, "Paste-Status %s" % status
-    assert DIKTAT in text, "Diktat kam nicht im Zielfenster an"
+    assert all(s == inject.PASTE_OK for s in stati), "Paste-Status: %s" % (stati,)
+    assert text.count(DIKTAT) == 3, "nicht alle drei Diktate kamen an: %r" % text
+    status = stati[-1]
     assert nachher and win32con.CF_DIB in nachher, "BILD VERLOREN - der Bug ist zurueck"
     print("\nE2E OK: Diktat eingefuegt UND Bild erhalten")
 finally:
