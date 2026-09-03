@@ -11,7 +11,8 @@ EDITABLE_SETTINGS = [
     "hotkey", "hotkey2", "toggle_hotkey", "ptt_mode", "language", "ollama_model", "ai_cleanup",
     "play_sounds", "min_duration_s", "paste_restore_delay", "cleanup_timeout_s",
     "audio_device", "beam_size", "cleanup_min_words", "tail_ms",
-    "duck_audio", "duck_volume", "swallow_mouse_hotkey", "max_duration_s",
+    "duck_audio", "duck_volume", "swallow_mouse_hotkey", "pause_in_fullscreen",
+    "max_duration_s",
     "voice_commands_enabled", "voice_commands", "live_preview", "glass_pill",
     "overlay_font", "overlay_font_size", "overlay_theme", "smart_spacing",
     "type_max_chars",
@@ -23,8 +24,8 @@ EDITABLE_SETTINGS = [
 # min_duration_s jedes folgende Diktat crashen (Vergleich float < str) und
 # ueberlebte via config.json sogar App-Neustarts.
 _BOOL_SETTINGS = {"ai_cleanup", "play_sounds", "duck_audio", "swallow_mouse_hotkey",
-                  "voice_commands_enabled", "live_preview", "glass_pill",
-                  "smart_spacing"}
+                  "pause_in_fullscreen", "voice_commands_enabled", "live_preview",
+                  "glass_pill", "smart_spacing"}
 _INT_SETTINGS = {"beam_size", "cleanup_min_words", "tail_ms", "overlay_font_size",
                  "max_duration_s", "type_max_chars"}
 _FLOAT_SETTINGS = {"min_duration_s", "paste_restore_delay", "cleanup_timeout_s",

@@ -121,6 +121,7 @@
         <button class="btn ghost" id="cap-toggle_hotkey" style="white-space:nowrap">⌨ Aufnehmen</button>
       </div>
       <div class="checkrow"><input type="checkbox" id="s-swallow_mouse_hotkey"><span>Maus-Hotkey verschluckt den Klick (nötig, damit markierter Text ersetzt statt der Cursor versetzt wird; deaktiviert dafür Browser-Vor/Zurück auf der Taste)</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-pause_in_fullscreen"><span>Im Spiel / Vollbild automatisch pausieren: läuft vorne eine Vollbild-App (Spiel, randloses Fenster, F11-Vollbild), werden die Diktat-Hotkeys ignoriert und die Maus-Seitentaste geht ungestört ans Spiel. Wird nur beim Tastendruck geprüft, kein Hintergrund-Polling.</span></div>
       <div class="checkrow"><input type="checkbox" id="s-voice_commands_enabled"><span>Sprachbefehle aktiv (am Ende des Diktats sagen) – der Befehl wird nicht getippt, sondern als Taste gedrückt</span></div>
       <div id="voice-cmd-editor" style="margin:6px 0 0 26px">
         <div id="voice-cmd-rows"></div>
@@ -439,6 +440,7 @@ async function loadSettings() {
   syncTypeRow();
   renderDesign(s);
   $("#s-swallow_mouse_hotkey").checked = !!s.swallow_mouse_hotkey;
+  $("#s-pause_in_fullscreen").checked = !!s.pause_in_fullscreen;
   $("#s-voice_commands_enabled").checked = !!s.voice_commands_enabled;
   renderVoiceCommands(s.voice_commands || []);
   $("#s-autostart").checked = !!s.autostart;
@@ -476,6 +478,7 @@ $("#s-save").onclick = async () => {
     type_max_chars: $("#s-type_enabled").checked
       ? Math.max(1, parseInt($("#s-type_max_chars").value, 10) || 200) : 0,
     swallow_mouse_hotkey: $("#s-swallow_mouse_hotkey").checked,
+    pause_in_fullscreen: $("#s-pause_in_fullscreen").checked,
     voice_commands_enabled: $("#s-voice_commands_enabled").checked,
     voice_commands: collectVoiceCommands(),
     autostart: $("#s-autostart").checked,

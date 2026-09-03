@@ -117,3 +117,32 @@ def ensure_launcher_shortcut():
 
 def set_dpi_awareness():
     """No-op: macOS skaliert Fenster selbst (Retina-Backing)."""
+
+
+def is_fullscreen_app_active() -> bool:
+    """Pendant zur Win32-Vollbild-Erkennung ("im Spiel pausieren").
+    ASSUMPTION (ungetestet): das vorderste Fenster der aktiven App bedeckt
+    den kompletten Bildschirm. Ohne pyobjc/Fehler -> False (Gate offen)."""
+    try:
+        import Quartz
+        from AppKit import NSScreen, NSWorkspace
+        app = NSWorkspace.sharedWorkspace().frontmostApplication()
+        if app is None:
+            return False
+        pid = app.processIdentifier()
+        screens = [s.frame() for s in NSScreen.screens()]
+        wins = Quartz.CGWindowListCopyWindowInfo(
+            Quartz.kCGWindowListOptionOnScreenOnly
+            | Quartz.kCGWindowListExcludeDesktopElements, Quartz.kCGNullWindowID)
+        for w in wins or []:
+            if w.get("kCGWindowOwnerPID") != pid or w.get("kCGWindowLayer", 0) != 0:
+                continue
+            b = w.get("kCGWindowBounds") or {}
+            for f in screens:
+                if (b.get("Width", 0) >= f.size.width
+                        and b.get("Height", 0) >= f.size.height):
+                    return True
+            return False  # nur das vorderste Fenster der App zaehlt
+    except Exception:  # noqa: BLE001
+        log.debug("Vollbild-Erkennung (darwin) fehlgeschlagen", exc_info=True)
+    return False

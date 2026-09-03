@@ -18,12 +18,13 @@ def make_backends() -> SimpleNamespace:
     from ... import sounds as _sounds
     from ...ducking import AudioDucker
     from . import autostart as _autostart
+    from . import fullscreen as _fullscreen
     from . import integration as _integration
 
     return SimpleNamespace(
         # HotkeyBackend
-        make_ptt=lambda combo, controller, swallow_mouse=False: _hotkey.PushToTalk(
-            combo, controller, swallow_mouse=swallow_mouse),
+        make_ptt=lambda combo, controller, swallow_mouse=False, gate=None: _hotkey.PushToTalk(
+            combo, controller, swallow_mouse=swallow_mouse, gate=gate),
         add_hotkey=_hotkey.add_hotkey,
         remove_hotkey=_hotkey.remove_hotkey,
         capture_combo=_hotkey.capture_combo,
@@ -42,5 +43,6 @@ def make_backends() -> SimpleNamespace:
         integration=SimpleNamespace(
             acquire_single_instance=_integration.acquire_single_instance,
             ensure_launcher_shortcut=_integration.ensure_launcher_shortcut,
-            set_dpi_awareness=_integration.set_dpi_awareness),
+            set_dpi_awareness=_integration.set_dpi_awareness,
+            is_fullscreen_app_active=_fullscreen.is_fullscreen_app_active),
     )

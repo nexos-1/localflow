@@ -40,6 +40,13 @@ ersetzt, statt den Cursor zu versetzen - aktiviert "Maus-Hotkey verschluckt
 den Klick" in den Einstellungen. Sprache wird automatisch erkannt
 (Deutsch/Englisch gemischt kein Problem).
 
+**Im Spiel / Vollbild pausieren:** Laeuft vorne eine Vollbild-App (Spiel,
+randloses Fenster, F11-Vollbild), ignoriert LocalFlow die Diktat-Hotkeys,
+und eine Maus-Seitentaste geht ungestoert ans Spiel. Sobald man heraus-
+tabbt, geht es ohne Zutun weiter. Standard an; abschaltbar in den
+Einstellungen oder per Haekchen im Tray-Menue (Rechtsklick aufs Icon).
+Geprueft wird nur beim Tastendruck - kein Hintergrund-Polling.
+
 **Sprachbefehle:** Ein Diktat, das auf "press enter", "press backspace",
 "press escape" oder "press delete" endet, tippt die Phrase nicht, sondern
 drueckt die Taste (nach dem Einfuegen des restlichen Texts). Die

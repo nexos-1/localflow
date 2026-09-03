@@ -32,6 +32,11 @@ DEFAULTS = {
     # navigiert vor/zurueck UND LocalFlow reagiert). True: Taste wird
     # systemweit verschluckt und ist exklusiv fuers Diktieren.
     "swallow_mouse_hotkey": False,
+    # Im Spiel/Vollbild automatisch pausieren: bedeckt die Vordergrund-App
+    # den ganzen Monitor (Spiel, Borderless, F11-Vollbild), werden die
+    # Diktat-Hotkeys ignoriert und die Maus-Seitentaste nicht verschluckt.
+    # Wird erst beim Tastendruck abgefragt - kein Polling, kein Thread.
+    "pause_in_fullscreen": True,
     # Darf die PTT-Kombination NICHT enthalten, sonst feuert beim Toggle erst
     # der Halte-Hook und beide Modi kollidieren.
     "toggle_hotkey": "ctrl+alt+space",  # einmal druecken = Start, nochmal = Stop

@@ -51,14 +51,42 @@ class _MouseHook(threading.Thread):
                     ("flags", wintypes.DWORD), ("time", wintypes.DWORD),
                     ("dwExtraInfo", ctypes.c_void_p)]
 
-    def __init__(self, tracked: set[str], on_event, suppress: bool = False):
-        """on_event(name: 'maus4'|'maus5', is_down: bool)"""
+    def __init__(self, tracked: set[str], on_event, suppress: bool = False,
+                 gate=None):
+        """on_event(name: 'maus4'|'maus5', is_down: bool)
+        gate: optionaler Callable -> bool; False = Tastendruck gehoert gerade
+        NICHT uns (z.B. Spiel im Vollbild): weder melden noch verschlucken."""
         super().__init__(daemon=True, name="localflow-mousehook")
         self.tracked = set(tracked)
         self.on_event = on_event
         self.suppress = suppress
+        self.gate = gate
+        self._swallowed: set[str] = set()  # Tasten, deren DOWN wir geschluckt haben
         self._tid: int | None = None
         self._ready = threading.Event()
+
+    def decide(self, name: str, is_down: bool) -> tuple[bool, bool]:
+        """(melden, verschlucken) fuer ein Tasten-Event - pure Logik, testbar.
+
+        DOWN: nur wenn das Gate offen ist. Geschluckt wird nur, was wir
+        auch gemeldet haben. UP: IMMER melden (ein gehaltener Hotkey muss
+        auch dann enden, wenn man waehrenddessen ins Spiel wechselt) und nur
+        verschlucken, wenn das zugehoerige DOWN geschluckt wurde - sonst
+        saehe die App ein Down ohne Up (Taste "haengt")."""
+        if is_down:
+            if self.gate is not None:
+                try:
+                    if not self.gate():
+                        self._swallowed.discard(name)
+                        return False, False
+                except Exception:  # noqa: BLE001 - Gate-Fehler = offen
+                    log.debug("Hotkey-Gate fehlgeschlagen", exc_info=True)
+            if self.suppress:
+                self._swallowed.add(name)
+            return True, self.suppress
+        swallow = name in self._swallowed
+        self._swallowed.discard(name)
+        return True, swallow
 
     def run(self):
         user32 = ctypes.windll.user32
@@ -78,11 +106,14 @@ class _MouseHook(threading.Thread):
                 btn = (ms.mouseData >> 16) & 0xFFFF
                 name = "maus4" if btn == 1 else ("maus5" if btn == 2 else None)
                 if name and name in self.tracked:
-                    try:
-                        self.on_event(name, w_param == self.WM_XBUTTONDOWN)
-                    except Exception:  # noqa: BLE001
-                        log.exception("Maus-Hook-Callback fehlgeschlagen")
-                    if self.suppress:
+                    is_down = w_param == self.WM_XBUTTONDOWN
+                    report, swallow = self.decide(name, is_down)
+                    if report:
+                        try:
+                            self.on_event(name, is_down)
+                        except Exception:  # noqa: BLE001
+                            log.exception("Maus-Hook-Callback fehlgeschlagen")
+                    if swallow:
                         return 1  # Taste exklusiv fuers Diktieren schlucken
             return user32.CallNextHookEx(None, n_code, w_param, l_param)
 
@@ -114,12 +145,16 @@ class PushToTalk:
     Combo darf Tastatur und Maus-Seitentasten mischen ("maus5", "ctrl+maus4")."""
 
     def __init__(self, combo: str, controller: DictationController,
-                 swallow_mouse: bool = False):
+                 swallow_mouse: bool = False, gate=None):
+        """gate: optionaler Callable -> bool, wird bei jedem DOWN gefragt.
+        False = Druck ignorieren (z.B. Spiel im Vollbild). UP-Events laufen
+        immer durch, damit eine gehaltene Aufnahme sauber endet."""
         combo = normalize_combo(combo)
         self.parts = [p.strip() for p in combo.lower().split("+")]
         self.kb_parts = [p for p in self.parts if p not in MOUSE_PARTS]
         self.mouse_parts = [p for p in self.parts if p in MOUSE_PARTS]
         self.swallow_mouse = swallow_mouse
+        self.gate = gate
         self.controller = controller
         self._down: set[str] = set()
         self._active = False
@@ -177,8 +212,21 @@ class PushToTalk:
         if injection_active.is_set():
             return  # eigene synthetische Events (Ctrl+V, ALT-Tap) ignorieren
         part = self._logical(event.name)
-        if part is not None:
-            self._enqueue(part, event.event_type == "down")
+        if part is None:
+            return
+        is_down = event.event_type == "down"
+        if is_down and not self._gate_open():
+            return
+        self._enqueue(part, is_down)
+
+    def _gate_open(self) -> bool:
+        if self.gate is None:
+            return True
+        try:
+            return bool(self.gate())
+        except Exception:  # noqa: BLE001 - Gate-Fehler = offen
+            log.debug("Hotkey-Gate fehlgeschlagen", exc_info=True)
+            return True
 
     def start(self):
         self._running = True
@@ -189,7 +237,8 @@ class PushToTalk:
             self._hook = keyboard.hook(self._handler)
         if self.mouse_parts:
             self._mouse_hook = _MouseHook(set(self.mouse_parts), self._enqueue,
-                                          suppress=self.swallow_mouse)
+                                          suppress=self.swallow_mouse,
+                                          gate=self.gate)
             self._mouse_hook.start()
         swallow_note = ", Maustaste verschluckt" if (self.mouse_parts and self.swallow_mouse) else ""
         log.info("Diktat-Hotkey aktiv: %s (Modus: %s%s)",

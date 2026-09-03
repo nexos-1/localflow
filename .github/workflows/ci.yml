@@ -27,6 +27,7 @@ jobs:
           python tests/test_cleanup_start.py
           python tests/test_darwin_port.py
           python tests/test_orphan_guard.py
+          python tests/test_fullscreen_gate.py
       # Diese laufen bewusst NICHT hier - sie brauchen eine interaktive
       # Windows-Session (echter Desktop, Fensterfokus, synthetische Eingaben).
       # Auf der Runner-Fensterstation gibt es das nicht. Lokal ausfuehren:

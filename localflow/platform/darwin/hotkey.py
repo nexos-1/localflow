@@ -67,12 +67,16 @@ class PynputPtt:
     """Gedrueckt/Losgelassen fuer EINE Kombination -> DictationController.
     Spiegelt die serielle Event-Queue des win32-Backends (Ordnung!)."""
 
-    def __init__(self, combo: str, controller, swallow_mouse: bool = False):
+    def __init__(self, combo: str, controller, swallow_mouse: bool = False,
+                 gate=None):
+        """gate: optionaler Callable -> bool; False = DOWN ignorieren
+        (Vollbild-App). UP-Events laufen immer durch (wie win32)."""
         combo = normalize_combo(combo)
         self.parts = [p for p in combo.split("+") if p]
         self.kb_parts = [p for p in self.parts if p not in MOUSE_PARTS]
         self.mouse_parts = [p for p in self.parts if p in MOUSE_PARTS]
         self.swallow_mouse = swallow_mouse
+        self.gate = gate
         self.controller = controller
         self._down: set[str] = set()
         self._active = False
@@ -85,7 +89,18 @@ class PynputPtt:
     # -- Event-Zufuhr (Listener-Threads) --------------------------------
 
     def _enqueue(self, part: str, is_down: bool):
+        if is_down and not self._gate_open():
+            return
         self._events.put((part, is_down))
+
+    def _gate_open(self) -> bool:
+        if self.gate is None:
+            return True
+        try:
+            return bool(self.gate())
+        except Exception:  # noqa: BLE001 - Gate-Fehler = offen
+            log.debug("Hotkey-Gate fehlgeschlagen", exc_info=True)
+            return True
 
     def _on_key(self, key, is_down: bool):
         from . import inject

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added
+- **Im Spiel / Vollbild automatisch pausieren** (Option, Standard an; im
+  Dashboard und per Haekchen im Tray-Menue schaltbar): laeuft vorne eine
+  Vollbild-App (Spiel, randloses Fenster, F11-Vollbild), ignoriert LocalFlow
+  die Diktat-Hotkeys - und die Maus-Seitentaste geht unverschluckt ans
+  Spiel, statt ein Diktat zu starten. Ein bereits laufendes Diktat laesst
+  sich weiterhin beenden. Die Erkennung wird nur beim Tastendruck abgefragt
+  (Direct3D-Vollbild-Status + Fenstergeometrie, ~0,1 ms), kein Polling,
+  kein Hintergrund-Thread.
+
 ### Fixed
 - **Terminal-Fenster-Sturm beim Systemstart**: LocalFlow startete beim Boot
   seinen eigenen `ollama serve` (Run-Key-Eintraege laufen vor dem

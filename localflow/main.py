@@ -116,6 +116,7 @@ class LocalFlowApp:
         self.ptt = None
         self.ptt2 = None                     # optionaler zweiter Diktat-Hotkey
         self._toggle_hotkey = None
+        self._fullscreen_logged = False     # 1 Log-Zeile pro Vollbild-Phase, kein Spam
         self.tray: pystray.Icon | None = None
 
     # --- Lebenszyklus ---
@@ -206,15 +207,48 @@ class LocalFlowApp:
         primary = (self.settings.get("hotkey") or "").strip()
         if primary:
             self.ptt = self.backends.make_ptt(primary, self.controller,
-                                              swallow_mouse=swallow)
+                                              swallow_mouse=swallow,
+                                              gate=self._hotkey_gate)
             self.ptt.start()
         # Zweiter Hotkey nur, wenn gesetzt UND nicht identisch zum ersten
         # (sonst wuerden zwei Hooks dieselbe Kombination doppelt melden).
         second = (self.settings.get("hotkey2") or "").strip()
         if second and (not primary or normalize_combo(second) != normalize_combo(primary)):
             self.ptt2 = self.backends.make_ptt(second, self.controller,
-                                               swallow_mouse=swallow)
+                                               swallow_mouse=swallow,
+                                               gate=self._hotkey_gate)
             self.ptt2.start()
+
+    def _hotkey_gate(self) -> bool:
+        """Darf ein Hotkey-Druck gerade etwas ausloesen? False im Spiel /
+        in einer Vollbild-App (Option pause_in_fullscreen). Wird NUR beim
+        Tastendruck gefragt - kein Polling, kein Thread, kein Zustand
+        ausser einer Log-Bremse. Liest das Setting live, damit die
+        Tray-Checkbox/Dashboard-Aenderung sofort wirkt."""
+        if not self.settings.get("pause_in_fullscreen"):
+            self._fullscreen_logged = False
+            return True
+        try:
+            blocked = self.backends.integration.is_fullscreen_app_active()
+        except Exception:  # noqa: BLE001 - Erkennung darf das Diktat nie sperren
+            log.debug("Vollbild-Erkennung fehlgeschlagen", exc_info=True)
+            return True
+        if blocked:
+            if not self._fullscreen_logged:
+                self._fullscreen_logged = True
+                # NICHT direkt loggen: das Gate laeuft im WH_MOUSE_LL-Hook-
+                # Thread, und ein log.info nimmt das Handler-Lock + schreibt
+                # die Datei. Haengt gerade ein anderer Thread im Log (Rotation,
+                # langsame Platte), stuende der Maus-Hook - Windows entfernt
+                # Low-Level-Hooks, die zu lange brauchen. Ausgelagert, und
+                # das nur einmal pro Vollbild-Phase.
+                threading.Thread(
+                    target=log.info, daemon=True, name="localflow-fullscreen-log",
+                    args=("Vollbild-App im Vordergrund - Diktat-Hotkey pausiert "
+                          "(Option 'Im Spiel pausieren')",)).start()
+        else:
+            self._fullscreen_logged = False
+        return not blocked
 
     def _remove_toggle(self):
         if self._toggle_hotkey is not None:
@@ -420,7 +454,9 @@ class LocalFlowApp:
             # Haengender Zustand (z.B. Start scheiterte waehrend Pause):
             # erst aufraeumen - sonst no-opt start_locked fuer immer.
             self.controller.force_stop()
-        else:
+        elif self._hotkey_gate():
+            # Nur das STARTEN wird im Spiel/Vollbild unterdrueckt - Stoppen
+            # und Aufraeumen (oben) gehen immer.
             self.controller.start_locked()
 
     def _trim_muted_head(self, audio, trim_ctx):
@@ -547,6 +583,11 @@ class LocalFlowApp:
         def toggle_autostart(icon, item):
             set_autostart(not is_autostart_enabled())
 
+        def toggle_fullscreen_pause(icon, item):
+            enabled = not self.settings.get("pause_in_fullscreen")
+            self.settings.set("pause_in_fullscreen", enabled)
+            log.info("Im Spiel/Vollbild pausieren: %s", "an" if enabled else "aus")
+
         def quit_app(icon, item):
             # Sauber runterfahren: laufendes Diktat stoppen, System-Audio
             # restaurieren (sonst blieben Apps stumm), Hooks loesen.
@@ -570,6 +611,8 @@ class LocalFlowApp:
             pystray.MenuItem("Dashboard öffnen", open_dashboard, default=True),
             pystray.MenuItem("Pausieren", toggle_pause,
                              checked=lambda item: self._user_paused),
+            pystray.MenuItem("Im Spiel / Vollbild pausieren", toggle_fullscreen_pause,
+                             checked=lambda item: bool(self.settings.get("pause_in_fullscreen"))),
             pystray.MenuItem("Mit Windows starten" if sys.platform == "win32"
                              else "Beim Anmelden starten", toggle_autostart,
                              checked=lambda item: is_autostart_enabled()),

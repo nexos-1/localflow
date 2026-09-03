@@ -146,6 +146,13 @@ dictation. Enable "swallow mouse hotkey" in the settings to make the button
 exclusive to dictation - then pressing it over selected text replaces the
 selection instead of moving the caret.
 
+Pause in games / fullscreen: when a fullscreen app is in front (game,
+borderless window, F11 fullscreen), LocalFlow ignores the dictation hotkeys
+and a mouse side button passes straight through to the game. Tab out and
+it resumes on its own. On by default; toggle it in the settings or via the
+checkmark in the tray menu (right-click the icon). The check only runs on
+key press - no background polling.
+
 ## Uninstall
 
 **Windows**: double-click **`uninstall.bat`**. It stops the app, removes
