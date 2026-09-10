@@ -311,7 +311,13 @@ class LocalFlowApp:
             self._record_session += 1
             if self.settings.get("duck_audio"):
                 self.ducker.duck()
-            self.recorder.start()
+            device_override = None
+            if self.settings.get("glassmic_enabled"):
+                from . import glassmic
+                if glassmic.active(self.settings.get("glassmic_url") or glassmic.DEFAULT_URL):
+                    device_override = self.settings.get("glassmic_device") or glassmic.DEFAULT_DEVICE
+                    log.info("Glass Mic aktiv: Aufnahme vom iPad (%s)", device_override)
+            self.recorder.start(device_override)
             self._arm_max_duration_watchdog(self._record_session)
             if self.settings.get("play_sounds"):
                 self.backends.sounds.play("start")

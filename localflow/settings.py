@@ -48,6 +48,11 @@ DEFAULTS = {
     "ollama_url": "http://127.0.0.1:11434",  # 127.0.0.1 statt localhost: spart ~2s IPv6-Fallback
     "ai_cleanup": True,
     "audio_device": None,           # None = Windows-Default
+    # Glass Mic (iPad-Mikrofon ueber VB-CABLE): ist ein iPad verbunden, nimmt
+    # LocalFlow von glassmic_device auf statt von audio_device. Siehe glassmic.py.
+    "glassmic_enabled": True,
+    "glassmic_url": "http://127.0.0.1:8321",
+    "glassmic_device": "CABLE Output (VB-Audio Virtual Cable), Windows WASAPI",
     "play_sounds": True,
     "duck_audio": True,             # andere Apps (YouTube etc.) waehrend Aufnahme stummschalten
     "duck_volume": 0.0,             # Restlautstaerke waehrend der Aufnahme (0 = komplett stumm)

@@ -47,6 +47,21 @@ class LevelMeter:
         return min(1.0, max(0.0, lvl))
 
 
+def _extra_settings_for(device):
+    """WASAPI-Geraete akzeptieren 16 kHz Mono im Shared Mode nur mit Auto-Convert
+    (PortAudio resampelt dann selbst). Fuer MME/DirectSound/None: nichts."""
+    try:
+        if device is None:
+            return None
+        info = sd.query_devices(device, "input")
+        api = sd.query_hostapis(info["hostapi"])["name"]
+        if "WASAPI" in api:
+            return sd.WasapiSettings(auto_convert=True)
+    except Exception:
+        pass
+    return None
+
+
 class Recorder:
     """Haelt einen InputStream offen (geringe Startlatenz) und sammelt Frames
     zwischen start() und stop()."""
@@ -60,27 +75,41 @@ class Recorder:
         self._chunks: list[np.ndarray] = []
         self._recording = False
         self._stream: sd.InputStream | None = None
+        self.active_device: int | str | None = None   # Geraet der laufenden/letzten Aufnahme
 
-    def open(self):
+    def open(self, device_override: int | str | None = None):
         # Stream nur waehrend der Aufnahme offen (Windows-"Mikrofon aktiv"-
         # Anzeige nur beim Diktieren). open/close koennen aus Diktat- UND
         # Flask-Thread kommen -> unter Stream-Lock serialisieren.
+        # device_override (z.B. Glass Mic / iPad) gilt nur fuer diese Aufnahme;
+        # schlaegt das Oeffnen fehl, faellt es auf das konfigurierte Geraet zurueck.
         with self._stream_lock:
             if self._stream is not None:
                 return
             import time
             t0 = time.perf_counter()
-            self._stream = sd.InputStream(
-                samplerate=SAMPLE_RATE,
-                channels=1,
-                dtype="float32",
-                device=self.device,
-                blocksize=BLOCKSIZE,
-                callback=self._callback,
-            )
-            self._stream.start()
-            log.info("Audio-Stream offen in %.0f ms (Geraet: %s)",
-                     (time.perf_counter() - t0) * 1000, self.device or "default")
+            candidates = [device_override, self.device] if device_override is not None else [self.device]
+            last_err = None
+            for dev in candidates:
+                try:
+                    self._stream = sd.InputStream(
+                        samplerate=SAMPLE_RATE,
+                        channels=1,
+                        dtype="float32",
+                        device=dev,
+                        blocksize=BLOCKSIZE,
+                        callback=self._callback,
+                        extra_settings=_extra_settings_for(dev),
+                    )
+                    self._stream.start()
+                    self.active_device = dev
+                    log.info("Audio-Stream offen in %.0f ms (Geraet: %s)",
+                             (time.perf_counter() - t0) * 1000, dev or "default")
+                    return
+                except Exception as e:
+                    last_err = e
+                    log.warning("Audio-Stream auf %s fehlgeschlagen: %s", dev, e)
+            raise last_err
 
     def close(self):
         with self._stream_lock:
@@ -105,8 +134,8 @@ class Recorder:
             rms = float(np.sqrt(np.mean(mono ** 2)))
             self.level_callback(self._meter.level(rms))
 
-    def start(self):
-        self.open()  # Stream nur waehrend der Aufnahme offen (Mikro-Anzeige)
+    def start(self, device_override: int | str | None = None):
+        self.open(device_override)  # Stream nur waehrend der Aufnahme offen (Mikro-Anzeige)
         with self._lock:
             self._chunks = []
             self._recording = True
