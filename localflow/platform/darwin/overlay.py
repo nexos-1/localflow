@@ -63,6 +63,9 @@ class NullOverlay:
     def set_glass(self, enabled: bool):
         pass
 
+    def set_source(self, source: str):
+        pass
+
     def set_style(self, font_family=None, font_size=None):
         pass
 
@@ -106,6 +109,10 @@ class DarwinOverlay:
 
     def set_glass(self, enabled: bool):
         self._queue.put(("glass", bool(enabled)))
+
+    def set_source(self, source: str):
+        # Badge "iPad" gibt es bisher nur im Windows-Overlay; Kanal bleibt kompatibel.
+        self._queue.put(("source", "ipad" if source == "ipad" else "pc"))
 
     def set_style(self, font_family=None, font_size=None):
         self._queue.put(("style", (font_family, font_size)))

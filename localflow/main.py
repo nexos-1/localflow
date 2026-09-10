@@ -318,6 +318,8 @@ class LocalFlowApp:
                     device_override = self.settings.get("glassmic_device") or glassmic.DEFAULT_DEVICE
                     log.info("Glass Mic aktiv: Aufnahme vom iPad (%s)", device_override)
             self.recorder.start(device_override)
+            # Badge in der Pille: "iPad", wenn die Aufnahme ueber Glass Mic laeuft.
+            self.overlay.set_source("ipad" if device_override else "pc")
             self._arm_max_duration_watchdog(self._record_session)
             if self.settings.get("play_sounds"):
                 self.backends.sounds.play("start")

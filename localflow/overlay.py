@@ -233,6 +233,8 @@ class Overlay:
         last = self._last
         if "glass" in last:
             self._queue.put(("glass", last["glass"]))
+        if "source" in last:
+            self._queue.put(("source", last["source"]))
         if "style" in last:
             self._queue.put(("style", last["style"]))
         if "theme" in last:
@@ -264,6 +266,13 @@ class Overlay:
         WAVE_STATES (recording/locked) gezeichnet; leer = Waveform zeigen."""
         self._last["text"] = text or ""
         self._queue.put(("text", text or ""))
+
+    def set_source(self, source: str):
+        """Aufnahmequelle fuer das kleine Badge in der Pille: "pc" (kein Badge)
+        oder "ipad" (Glass Mic, Mikrofon vom iPad)."""
+        src = "ipad" if source == "ipad" else "pc"
+        self._last["source"] = src
+        self._queue.put(("source", src))
 
     def set_glass(self, enabled: bool):
         """Glas-Optik an/aus: durchscheinende Pille (Desktop schimmert durch)."""
@@ -310,6 +319,13 @@ class Overlay:
         canvas = tk.Canvas(root, bg=TRANS, highlightthickness=0)
         canvas.pack(fill="both", expand=True)
         font = tkfont.Font(family="Segoe UI", size=FONT_SIZE, weight="bold")
+        badge_font = tkfont.Font(family="Segoe UI", size=max(6, FONT_SIZE - 3), weight="bold")
+
+        def badge_w() -> float:
+            # Breite des "iPad"-Badges rechts in der Pille (0, wenn Quelle der PC ist).
+            if st["source"] != "ipad":
+                return 0.0
+            return badge_font.measure("iPad") + 12 + 6
 
         st = {
             "target": "hidden",    # zuletzt gewuenschter State
@@ -328,6 +344,7 @@ class Overlay:
             "hwnd": None,          # Overlay-Fenster (fuer Hover-Erkennung)
             "pill_scr": None,      # Pill-Rechteck in Bildschirm-Px (letzter Frame)
             "glass": False,        # Glas-Optik: durchscheinende Pille
+            "source": "pc",        # Aufnahmequelle: "pc" oder "ipad" (Badge)
             "col": THEMES["dark"],  # aktives Farb-Thema (set_theme)
             "top_ts": 0.0,         # letzter Topmost-Nachdruck (_assert_topmost)
         }
@@ -338,8 +355,8 @@ class Overlay:
                 # ohne Text zeigt sie die Waveform in fester Breite.
                 if st["text"]:
                     tw = min(font.measure(st["text"]) + 6, MAX_TEXT_PX)
-                    return WAVE_LEFT + tw + PAD_R
-                return WAVE_LEFT + BAR_SPAN + PAD_R
+                    return WAVE_LEFT + tw + badge_w() + PAD_R
+                return WAVE_LEFT + BAR_SPAN + badge_w() + PAD_R
             if state == "processing":
                 return 64
             if state == "loading":
@@ -365,7 +382,7 @@ class Overlay:
         # oben; eingeklappt sitzt sie exakt an der alten Position. Grosszuegig
         # fuer die groesste erlaubte Schrift, weil die Schrift live umstellbar ist.
         base_w = max(content_width(s) for s in WAVE_STATES + ("processing",) + TEXT_STATES)
-        max_w = int(max(base_w, WAVE_LEFT + MAX_TEXT_PX + PAD_R)) + 8
+        max_w = int(max(base_w, WAVE_LEFT + MAX_TEXT_PX + PAD_R)) + 8 + int(badge_font.measure("iPad") + 18)
         # 48 px/Zeile = Worst Case bei Schriftgroesse 20 + DPI-Skalierung
         # (Schrift ist live umstellbar, das Fenster nicht - grosszuegig sein).
         expand_max_h = 2 * EXPAND_VPAD + EXPAND_MAX_LINES * 48
@@ -531,8 +548,19 @@ class Overlay:
                     canvas.create_oval(cx - r, cy - r, cx + r, cy + r,
                                        outline=_mix(st["col"]["bg"], st["col"]["fg"], rp * alpha),
                                        width=1.6)
-                zone = max(6.0, w - WAVE_LEFT - PAD_R)
+                bw_badge = badge_w()
+                zone = max(6.0, w - WAVE_LEFT - PAD_R - bw_badge)
                 x0 = px + WAVE_LEFT
+                if bw_badge > 0:
+                    # Kleines "iPad"-Badge: Aufnahme kommt ueber Glass Mic vom iPad.
+                    tw = badge_font.measure("iPad")
+                    bx1 = px + w - PAD_R + 4
+                    bx0 = bx1 - tw - 12
+                    by0, by1 = cy - 8, cy + 8
+                    bcol = _mix(st["col"]["bg"], st["col"]["fg"], 0.55 * alpha)
+                    canvas.create_rectangle(bx0, by0, bx1, by1, outline=bcol, width=1)
+                    canvas.create_text((bx0 + bx1) / 2, cy, text="iPad", font=badge_font,
+                                       fill=bcol, anchor="center")
                 if st["text"] and ph > H + 1.0:
                     # Ausgeklappt: ganzer Text umgebrochen, unten-buendig -
                     # neueste Zeile unten neben dem Punkt, aeltere darueber.
@@ -613,7 +641,7 @@ class Overlay:
             # Pille, klingt der expand-Tween weich aus statt hart zu springen.
             ph = float(H)
             if expand.v > 0.001 and st["text"]:
-                zone = max(20.0, w - WAVE_LEFT - PAD_R)
+                zone = max(20.0, w - WAVE_LEFT - PAD_R - badge_w())
                 nlines = min(len(wrap_text(st["text"], zone)), EXPAND_MAX_LINES)
                 full_h = max(float(H), 2 * EXPAND_VPAD + max(1, nlines) * st["line_h"])
                 # Nie hoeher als das Fenster (Schrift ist live umstellbar,
@@ -673,6 +701,8 @@ class Overlay:
                         elif kind == "glass":
                             st["glass"] = value
                             st["win_alpha"] = -1.0  # Alpha neu anwenden erzwingen
+                        elif kind == "source":
+                            st["source"] = value
                         elif kind == "theme":
                             st["col"] = THEMES.get(value, THEMES["dark"])
                         elif kind == "style":
