@@ -69,6 +69,39 @@ t[0] += 3.0; c.combo_down(); c.combo_up()
 assert c.state == "idle" and p.events == ["start", "stop"]
 print("Toggle-Modus OK:", p.events)
 
+# --- Modus "toggle": zweiter Druck kurz nach dem Start (Prellen/Doppeltipp)
+# darf die Aufnahme NICHT beenden (Log zeigte 200-350 ms lange Aufnahmen) ---
+t = [0.0]; p, c = make("toggle", lambda: t[0])
+c.combo_down(); t[0] += 0.05; c.combo_up()          # Druck 1 -> laeuft
+t[0] += 0.12; c.combo_down(); t[0] += 0.05; c.combo_up()   # Prellen 170 ms spaeter
+assert c.state == "locked" and p.events == ["start"], (c.state, p.events)
+t[0] += 3.0; c.combo_down(); c.combo_up()            # echter Stopp
+assert c.state == "idle" and p.events == ["start", "stop"], p.events
+print("Toggle-Prellen beim Start ignoriert OK:", p.events)
+
+# --- Prellen beim STOPP darf keine neue Aufnahme starten ---
+t = [0.0]; p, c = make("toggle", lambda: t[0])
+c.combo_down(); c.combo_up(); t[0] += 5.0
+c.combo_down(); t[0] += 0.05; c.combo_up()          # Stopp
+t[0] += 0.15; c.combo_down(); c.combo_up()          # Prellen 200 ms spaeter
+assert c.state == "idle" and p.events == ["start", "stop"], (c.state, p.events)
+t[0] += 1.0; c.combo_down(); c.combo_up()            # neuer, echter Start
+assert c.state == "locked" and p.events == ["start", "stop", "start"]
+print("Toggle-Prellen beim Stopp ignoriert OK:", p.events)
+
+# --- Sperre exakt an der Grenze: 0.4 s danach zaehlt der Druck wieder ---
+t = [0.0]; p, c = make("toggle", lambda: t[0])
+c.combo_down(); c.combo_up(); t[0] += 0.40; c.combo_down(); c.combo_up()
+assert p.events == ["start", "stop"], p.events
+print("Toggle-Sperre Grenze OK")
+
+# --- Sperre gilt NICHT in "both": dort ist der Doppeltipp das Freisprechen ---
+t = [0.0]; p, c = make("both", lambda: t[0])
+c.combo_down(); t[0] += 0.1; c.combo_up(); t[0] += 0.1; c.combo_down()
+assert c.state == "locked" and p.events == ["start", "lock"], p.events
+c.combo_up()
+print("Doppeltipp in both weiterhin OK")
+
 # --- normalize_combo ---
 assert normalize_combo("ctrl+windows") == "ctrl+win"
 assert normalize_combo("Strg+Leertaste") == "ctrl+space"

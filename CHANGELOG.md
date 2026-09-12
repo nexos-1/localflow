@@ -13,6 +13,15 @@
   kein Hintergrund-Thread.
 
 ### Fixed
+- **Toggle-Modus ("Druecken startet / druecken stoppt") brach Aufnahmen
+  sofort wieder ab**: Ein zweiter Druck 60-200 ms nach dem ersten (prellende
+  Maus-Seitentaste oder der antrainierte Doppeltipp aus dem Halten-Modus)
+  galt als Stopp - im Log standen 200-350 ms lange Aufnahmen, die wegen
+  min_duration_s stillschweigend verworfen wurden. Umgekehrt startete ein
+  Prellen beim Stopp-Druck gleich die naechste Aufnahme. Jetzt zaehlt im
+  Toggle-Modus ein Druck erst 0,4 s nach dem letzten Start/Stopp; ignorierte
+  Druecke stehen im Log. Der Doppeltipp im Modus "Halten + Doppeltipp"
+  bleibt unveraendert.
 - **Terminal-Fenster-Sturm beim Systemstart**: LocalFlow startete beim Boot
   seinen eigenen `ollama serve` (Run-Key-Eintraege laufen vor dem
   Autostart-Ordner) und belegte damit Port 11434. Ollamas eigene Tray-App

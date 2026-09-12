@@ -9,11 +9,16 @@ Drei Modi:
 - "hold":   Kombination halten = aufnehmen, loslassen = fertig.
 - "both":   wie hold, PLUS Doppeltipp = Freisprechen (Aufnahme laeuft nach dem
             Loslassen weiter, naechster Druck stoppt). Default.
-- "toggle": jeder Druck startet bzw. stoppt (kein Halten noetig).
+- "toggle": jeder Druck startet bzw. stoppt (kein Halten noetig). Ein
+            zweiter Druck kurz nach dem ersten (Prellen der Maustaste oder
+            der antrainierte Doppeltipp) wird ignoriert, siehe toggle_guard_s.
 """
 
+import logging
 import threading
 import time
+
+log = logging.getLogger("localflow.controller")
 
 # Namen, wie Hooks sie melden koennen, je logische Taste. Die kanonischen
 # Tokens (ctrl/win/alt/shift/space/maus4/maus5) sind plattformneutral;
@@ -66,7 +71,8 @@ class DictationController:
 
     def __init__(self, on_start, on_stop, on_cancel=None, on_lock=None,
                  mode: str = "both", tap_max_s: float = 0.35,
-                 double_tap_window_s: float = 0.40, clock=time.monotonic):
+                 double_tap_window_s: float = 0.40, toggle_guard_s: float = 0.40,
+                 clock=time.monotonic):
         self.on_start = on_start
         self.on_stop = on_stop
         self.on_cancel = on_cancel or on_stop
@@ -74,6 +80,15 @@ class DictationController:
         self.mode = mode
         self.tap_max_s = tap_max_s
         self.double_tap_window_s = double_tap_window_s
+        # Nur Modus "toggle": Druecke, die schneller als toggle_guard_s auf
+        # den letzten Start/Stopp folgen, zaehlen nicht. Ohne diese Sperre
+        # beendete ein prellender Taster oder ein reflexhafter Doppeltipp
+        # die Aufnahme sofort wieder (im Log: 200-350 ms lange Aufnahmen),
+        # bzw. startete nach dem Stopp-Druck gleich die naechste. Eine
+        # Aufnahme unter 0,4 s wird ohnehin verworfen (min_duration_s),
+        # der Nutzer verliert also nichts.
+        self.toggle_guard_s = toggle_guard_s
+        self._t_toggle = None  # Zeitpunkt des letzten Toggle-Start/Stopps
         self._clock = clock
         self._state = self.IDLE
         self._t_down = 0.0
@@ -94,9 +109,24 @@ class DictationController:
             self._armed_timer.cancel()
             self._armed_timer = None
 
+    def _toggle_bounce(self) -> bool:
+        """True, wenn dieser Druck im Toggle-Modus zu dicht auf den letzten
+        Start/Stopp folgt und ignoriert werden soll."""
+        if self.mode != "toggle":
+            return False
+        now = self._clock()
+        if self._t_toggle is not None and (now - self._t_toggle) < self.toggle_guard_s:
+            log.info("Toggle: Druck %.0f ms nach dem letzten ignoriert "
+                     "(Tastenprellen/Doppeltipp)", (now - self._t_toggle) * 1000)
+            return True
+        self._t_toggle = now
+        return False
+
     def combo_down(self, owner=None):
         with self._lock:
             if self._state == self.IDLE:
+                if self._toggle_bounce():
+                    return
                 self._owner = owner
                 self._t_down = self._clock()
                 self._state = self.LOCKED if self.mode == "toggle" else self.HOLD
@@ -110,6 +140,8 @@ class DictationController:
                 self.on_lock()
             elif self._state == self.LOCKED:
                 # Druck beendet das Freisprechen / den Toggle (jeder Hotkey darf)
+                if self._toggle_bounce():
+                    return
                 self._state = self.STOPPING
                 self.on_stop()
 
