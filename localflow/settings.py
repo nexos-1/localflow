@@ -92,6 +92,8 @@ DEFAULTS = {
     # (Satzende, Wortmitte), wird automatisch ein Leerzeichen vorangestellt.
     # In Terminals automatisch deaktiviert (Sonde nutzt Strg+C).
     "smart_spacing": True,
+    # Optional trailing space for consecutive typed or pasted dictations.
+    "trailing_space": False,
 }
 
 

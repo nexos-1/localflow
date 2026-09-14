@@ -139,6 +139,7 @@
       <div class="checkrow"><input type="checkbox" id="s-duck_audio"><span>System-Audio während Aufnahme stummschalten (YouTube, Spotify …)</span></div>
       <div class="checkrow"><input type="checkbox" id="s-live_preview"><span>Live-Vorschau: Transkript schon während des Sprechens in der Overlay-Pille zeigen (der finale, bereinigte Text wird erst beim Loslassen eingefügt)</span></div>
       <div class="checkrow"><input type="checkbox" id="s-smart_spacing"><span>Smart Spacing: automatisch ein Leerzeichen einfügen, wenn das Diktat direkt an bestehenden Text ansetzt (in Terminals automatisch aus)</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-trailing_space"><label for="s-trailing_space" style="margin:0;font:inherit;color:inherit">Leerzeichen nach dem Diktat: trennt aufeinanderfolgende Diktate beim Tippen und Einfügen. Kein zusätzliches Leerzeichen nach vorhandenem Weißraum oder bei Sprachbefehlen.</label></div>
       <div class="checkrow"><input type="checkbox" id="s-type_enabled"><span>Kurze Diktate <b>tippen</b> statt einfügen: lässt die Zwischenablage komplett unberührt (Programme mit Zwischenablage-Überwachung melden sonst bei jedem Diktat eine Änderung). Dafür gibt es beim Tippen kein Smart Spacing.</span></div>
       <div class="checkrow" style="margin-left:24px">
         <span class="dim">bis</span>
@@ -431,6 +432,7 @@ async function loadSettings() {
   $("#s-duck_audio").checked = !!s.duck_audio;
   $("#s-live_preview").checked = !!s.live_preview;
   $("#s-smart_spacing").checked = !!s.smart_spacing;
+  $("#s-trailing_space").checked = !!s.trailing_space;
   // Getippt/eingefuegt haengt an EINER Zahl (0 = aus). Die Checkbox ist nur
   // die bequeme Ansicht davon; das Zahlenfeld behaelt beim Ausschalten den
   // letzten sinnvollen Wert, damit er beim Wiedereinschalten noch da ist.
@@ -474,6 +476,7 @@ $("#s-save").onclick = async () => {
     duck_audio: $("#s-duck_audio").checked,
     live_preview: $("#s-live_preview").checked,
     smart_spacing: $("#s-smart_spacing").checked,
+    trailing_space: $("#s-trailing_space").checked,
     // 0 = Tippen aus. Unter 1 waere sinnlos, darum untere Grenze bei 1.
     type_max_chars: $("#s-type_enabled").checked
       ? Math.max(1, parseInt($("#s-type_max_chars").value, 10) || 200) : 0,

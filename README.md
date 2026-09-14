@@ -70,6 +70,16 @@ dictionary and dictation history. German README: [README.de.md](README.de.md)
   crash-safe volume restore, autostart with Windows, Ollama health check
   with double-spawn protection
 
+### Optional space after dictation
+
+Enable **Leerzeichen nach dem Diktat** in the dashboard settings to append a
+space to typed and pasted dictations. This separates consecutive dictations,
+including short dictations that use clipboard-free typing. The option is off
+by default. It preserves existing trailing whitespace and skips dictations
+with voice commands, so Backspace and other keys retain their meaning.
+History stores the original transcript without the added space. This option
+does not inspect text after the cursor; disable it for precise mid-word edits.
+
 ## Requirements
 
 - Windows 11, Python 3.11+
