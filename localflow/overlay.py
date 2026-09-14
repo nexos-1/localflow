@@ -24,6 +24,8 @@ Eine Akzentfarbe existiert bewusst nicht - alle States sind
 schwarz/weiss/grau (Nutzerwunsch: weniger Farben, kleiner).
 """
 
+from .i18n import translate
+
 import collections
 import ctypes
 import logging
@@ -163,6 +165,7 @@ WATCHDOG_MISSES = 2        # so viele stale-Checks in Folge = tot (schuetzt
 
 class Overlay:
     def __init__(self):
+        self._ui_language = "de"
         self._queue: queue.Queue = queue.Queue()
         self._hb = {"t": 0.0}      # letzter Tick (perf_counter) der Overlay-Thread
         self._hwnd_box = {"hwnd": None}  # HWND der aktuellen Pill (fuer Aufraeumen)
@@ -170,6 +173,9 @@ class Overlay:
         self._gen = 0
         self._thread = None
         self._started = False
+
+    def set_language(self, value):
+        self._ui_language = value
 
     def start(self):
         if self._started:
@@ -360,11 +366,11 @@ class Overlay:
             if state == "processing":
                 return 64
             if state == "loading":
-                return 14 + 12 + 8 + font.measure("Lade Modelle …") + 14
+                return 14 + 12 + 8 + font.measure(translate("Lade Modelle …", self._ui_language)) + 14
             if state == "clipboard":
-                return 14 + font.measure("Text im Clipboard – Strg+V") + 14
+                return 14 + font.measure(translate("Text im Clipboard – Strg+V", self._ui_language)) + 14
             if state == "error":
-                return 14 + 7 + 8 + font.measure("Fehler") + 14
+                return 14 + 7 + 8 + font.measure(translate("Fehler", self._ui_language)) + 14
             return 100
 
         def fit_text_tail(s: str, max_px: float) -> str:
@@ -615,17 +621,17 @@ class Overlay:
                 canvas.create_arc(px + 14, cy - 6, px + 26, cy + 6, start=a,
                                   extent=100, style="arc",
                                   outline=_mix(st["col"]["bg"], st["col"]["dim"], alpha), width=2)
-                canvas.create_text(px + 34, cy, text="Lade Modelle …",
+                canvas.create_text(px + 34, cy, text=translate("Lade Modelle …", self._ui_language),
                                    fill=_mix(st["col"]["bg"], st["col"]["dim"], alpha),
                                    font=font, anchor="w")
             elif state == "clipboard":
-                canvas.create_text(px + 14, cy, text="Text im Clipboard – Strg+V",
+                canvas.create_text(px + 14, cy, text=translate("Text im Clipboard – Strg+V", self._ui_language),
                                    fill=_mix(st["col"]["bg"], st["col"]["fg"], alpha),
                                    font=font, anchor="w")
             elif state == "error":
                 canvas.create_oval(px + 14, cy - 3.5, px + 21, cy + 3.5,
                                    fill=_mix(st["col"]["bg"], st["col"]["dim"], alpha), outline="")
-                canvas.create_text(px + 29, cy, text="Fehler",
+                canvas.create_text(px + 29, cy, text=translate("Fehler", self._ui_language),
                                    fill=_mix(st["col"]["bg"], st["col"]["fg"], alpha),
                                    font=font, anchor="w")
 

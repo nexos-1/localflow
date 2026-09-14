@@ -17,11 +17,12 @@ jobs:
           python-version: "3.12"
       # Bewusst NICHT requirements.txt (CUDA-Wheels ~1 GB): nur was die
       # hardwarefreien Tests brauchen.
-      - run: pip install numpy sounddevice keyboard requests psutil pywin32 pystray Pillow
+      - run: pip install numpy sounddevice keyboard requests psutil pywin32 pystray Pillow flask==3.1.3
       - name: Unit-Tests
         run: |
           python tests/test_dictation_modes.py
           python tests/test_commands.py
+          python tests/test_i18n.py
           python tests/test_second_hotkey.py
           python tests/test_levelmeter.py
           python tests/test_cleanup_start.py

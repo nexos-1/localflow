@@ -253,3 +253,9 @@ LocalFlow steht in keiner Verbindung zu Wispr AI und wird von Wispr AI
 weder unterstuetzt noch empfohlen. "Wispr Flow" ist eine Marke des
 jeweiligen Inhabers und wird hier ausschliesslich zur Beschreibung der
 Kompatibilitaet genannt.
+
+Die Oberflaeche kann unter Einstellungen → Oberflaechensprache zwischen Deutsch
+und Englisch gewechselt werden. Deutsch bleibt der Standard; die Sprache der
+Spracherkennung und Sprachbefehle bleiben davon unabhaengig. Das Windows-Setup
+fragt nach `de` oder `en`; Enter behaelt eine vorhandene Einstellung bei.
+Unbeaufsichtigt: `install.ps1 -UiLanguage en` bzw. `-UiLanguage de`.

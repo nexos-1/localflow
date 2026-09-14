@@ -1,0 +1,331 @@
+{
+  "dashboard": {
+    "html_lang_en": {
+      "de": "<html lang=\"de\">",
+      "en": "<html lang=\"en\">"
+    },
+    "localflow_is_not_running_open_localflow_from_the_start_menu_this_": {
+      "de": "LocalFlow läuft gerade nicht. Starte die App (Startmenü → „LocalFlow\"), diese Seite verbindet sich dann automatisch neu.",
+      "en": "LocalFlow is not running. Open LocalFlow from the Start menu. This page will reconnect automatically."
+    },
+    "dictionary": {
+      "de": "Wörterbuch",
+      "en": "Dictionary"
+    },
+    "settings": {
+      "de": "Einstellungen",
+      "en": "Settings"
+    },
+    "search_history": {
+      "de": "History durchsuchen…",
+      "en": "Search history…"
+    },
+    "load_more": {
+      "de": "Mehr laden",
+      "en": "Load more"
+    },
+    "spoken_phrase": {
+      "de": "Phrase (gesprochen)",
+      "en": "Spoken phrase"
+    },
+    "replacement_snippet_text_leave_blank_to_help_recognition": {
+      "de": "Ersetzung / Snippet-Text (leer = Erkennungshilfe)",
+      "en": "Replacement / snippet text (leave blank to help recognition)"
+    },
+    "add": {
+      "de": "Hinzufügen",
+      "en": "Add"
+    },
+    "snippet_say_the_phrase_insert_the_text": {
+      "de": "Snippet (Phrase sagen → Text wird eingefügt)",
+      "en": "Snippet (say the phrase → insert the text)"
+    },
+    "interface_language": {
+      "de": "Oberflächensprache",
+      "en": "Interface language"
+    },
+    "german": {
+      "de": "Deutsch",
+      "en": "German"
+    },
+    "dictation_hotkey": {
+      "de": "Diktat-Hotkey",
+      "en": "Dictation hotkey"
+    },
+    "capture": {
+      "de": "⌨ Aufnehmen",
+      "en": "⌨ Capture"
+    },
+    "second_dictation_hotkey_optional_works_alongside_the_first": {
+      "de": "Zweiter Diktat-Hotkey (optional, läuft parallel zum ersten)",
+      "en": "Second dictation hotkey (optional; works alongside the first)"
+    },
+    "blank_disabled": {
+      "de": "leer = deaktiviert",
+      "en": "blank = disabled"
+    },
+    "mode": {
+      "de": "Modus",
+      "en": "Mode"
+    },
+    "hold_to_talk_double_tap_for_hands_free_recommended": {
+      "de": "Halten + Doppeltipp = Freisprechen (empfohlen)",
+      "en": "Hold to talk + double-tap for hands-free (recommended)"
+    },
+    "hold_to_talk_release_to_stop": {
+      "de": "Nur Halten (loslassen stoppt)",
+      "en": "Hold to talk (release to stop)"
+    },
+    "press_to_start_press_to_stop": {
+      "de": "Drücken startet / drücken stoppt",
+      "en": "Press to start / press to stop"
+    },
+    "additional_toggle_hotkey_optional_starts_stops_hands_free_dictati": {
+      "de": "Zusätzlicher Toggle-Hotkey (optional, startet/stoppt Freisprechen)",
+      "en": "Additional toggle hotkey (optional; starts/stops hands-free dictation)"
+    },
+    "use_the_mouse_hotkey_exclusively_for_dictation_allows_selected_te": {
+      "de": "Maus-Hotkey verschluckt den Klick (nötig, damit markierter Text ersetzt statt der Cursor versetzt wird; deaktiviert dafür Browser-Vor/Zurück auf der Taste)",
+      "en": "Use the mouse hotkey exclusively for dictation (allows selected text to be replaced without moving the cursor; disables browser Back/Forward on that button)"
+    },
+    "automatically_pause_in_games_full_screen_when_a_full_screen_app_i": {
+      "de": "Im Spiel / Vollbild automatisch pausieren: läuft vorne eine Vollbild-App (Spiel, randloses Fenster, F11-Vollbild), werden die Diktat-Hotkeys ignoriert und die Maus-Seitentaste geht ungestört ans Spiel. Wird nur beim Tastendruck geprüft, kein Hintergrund-Polling.",
+      "en": "Automatically pause in games / full screen: when a full-screen app is in front (game, borderless window, or F11 full screen), dictation hotkeys are ignored and the mouse side button works normally in the game. Checked only when a hotkey is pressed."
+    },
+    "enable_voice_commands_say_them_at_the_end_of_dictation_presses_th": {
+      "de": "Sprachbefehle aktiv (am Ende des Diktats sagen) – der Befehl wird nicht getippt, sondern als Taste gedrückt",
+      "en": "Enable voice commands (say them at the end of dictation) – presses the key instead of typing the command"
+    },
+    "add_command": {
+      "de": "+ Befehl hinzufügen",
+      "en": "+ Add command"
+    },
+    "choose_a_key_then_enter_its_trigger_phrases_separate_multiple_phr": {
+      "de": "Taste wählen, Auslöser-Wörter dahinter (mehrere mit Komma). Wird nur am Satz-Ende erkannt. Tipp: 2 Wörter sind zuverlässiger als 1 (weniger Fehlauslösung), und Whisper hört „press enter\" gern als „presenter\".",
+      "en": "Choose a key, then enter its trigger phrases (separate multiple phrases with commas). Recognized only at the end of a sentence. Tip: two-word phrases reduce accidental triggers. Whisper may hear “press enter” as “presenter”."
+    },
+    "speech_recognition_language": {
+      "de": "Sprache",
+      "en": "Speech recognition language"
+    },
+    "automatic": {
+      "de": "Automatisch",
+      "en": "Automatic"
+    },
+    "english": {
+      "de": "Englisch",
+      "en": "English"
+    },
+    "microphone": {
+      "de": "Mikrofon",
+      "en": "Microphone"
+    },
+    "windows_default": {
+      "de": "Windows-Standard",
+      "en": "Windows default"
+    },
+    "ollama_model_ai_cleanup": {
+      "de": "Ollama-Modell (AI-Cleanup)",
+      "en": "Ollama model (AI cleanup)"
+    },
+    "enable_ai_cleanup": {
+      "de": "AI-Cleanup aktiv",
+      "en": "Enable AI cleanup"
+    },
+    "play_sounds": {
+      "de": "Sounds abspielen",
+      "en": "Play sounds"
+    },
+    "mute_system_audio_while_recording_youtube_spotify": {
+      "de": "System-Audio während Aufnahme stummschalten (YouTube, Spotify …)",
+      "en": "Mute system audio while recording (YouTube, Spotify …)"
+    },
+    "live_preview_show_the_transcript_in_the_floating_widget_while_you": {
+      "de": "Live-Vorschau: Transkript schon während des Sprechens in der Overlay-Pille zeigen (der finale, bereinigte Text wird erst beim Loslassen eingefügt)",
+      "en": "Live preview: show the transcript in the floating widget while you speak (the final cleaned text is inserted when you release the hotkey)"
+    },
+    "smart_spacing_add_a_space_when_dictation_follows_existing_text_au": {
+      "de": "Smart Spacing: automatisch ein Leerzeichen einfügen, wenn das Diktat direkt an bestehenden Text ansetzt (in Terminals automatisch aus)",
+      "en": "Smart spacing: add a space when dictation follows existing text (automatically disabled in terminals)"
+    },
+    "b_type_b_short_dictations_instead_of_pasting_leaves_the_clipboard": {
+      "de": "Kurze Diktate <b>tippen</b> statt einfügen: lässt die Zwischenablage komplett unberührt (Programme mit Zwischenablage-Überwachung melden sonst bei jedem Diktat eine Änderung). Dafür gibt es beim Tippen kein Smart Spacing.",
+      "en": "<b>Type</b> short dictations instead of pasting: leaves the clipboard untouched (avoids change notifications from clipboard-monitoring apps). Smart spacing is unavailable when typing."
+    },
+    "up_to": {
+      "de": ">bis<",
+      "en": ">up to<"
+    },
+    "characters_paste_longer_dictations": {
+      "de": "Zeichen tippen, längere Diktate einfügen",
+      "en": "characters; paste longer dictations"
+    },
+    "start_with_windows": {
+      "de": "Mit Windows starten",
+      "en": "Start with Windows"
+    },
+    "save": {
+      "de": "Speichern",
+      "en": "Save"
+    },
+    "floating_widget_appearance": {
+      "de": "Widget-Design (Overlay-Pille)",
+      "en": "Floating widget appearance"
+    },
+    "changes_take_effect_immediately": {
+      "de": "Änderungen wirken sofort - einfach ausprobieren.",
+      "en": "Changes take effect immediately."
+    },
+    "dark_black_widget_default": {
+      "de": "Dunkel – schwarze Pille (Standard)",
+      "en": "Dark – black widget (default)"
+    },
+    "light_gray_widget_white_text": {
+      "de": "Hell – mittelgraue Pille, weißer Text",
+      "en": "Light – gray widget, white text"
+    },
+    "font": {
+      "de": "Schriftart",
+      "en": "Font"
+    },
+    "font_size": {
+      "de": "Schriftgröße",
+      "en": "Font size"
+    },
+    "glass_effect_translucent_widget_the_desktop_shows_through_without": {
+      "de": "Glas-Optik: Pille durchscheinend (Desktop schimmert durch – glasig, nicht verschwommen)",
+      "en": "Glass effect: translucent widget (the desktop shows through without blur)"
+    },
+    "import_the_dictionary_and_history_from_your_installed_wispr_flow_": {
+      "de": "Übernimmt Wörterbuch und History aus der installierten Wispr-Flow-App.",
+      "en": "Import the dictionary and history from your installed Wispr Flow app."
+    },
+    "import_now": {
+      "de": "Jetzt importieren",
+      "en": "Import now"
+    },
+    "dictations": {
+      "de": "Diktate",
+      "en": "Dictations"
+    },
+    "words": {
+      "de": "Wörter",
+      "en": "Words"
+    },
+    "words_today": {
+      "de": "Wörter heute",
+      "en": "Words today"
+    },
+    "time_saved_compared_with_typing": {
+      "de": "Zeit gespart vs. Tippen",
+      "en": "Time saved compared with typing"
+    },
+    "total_audio": {
+      "de": "Audio gesamt",
+      "en": "Total audio"
+    },
+    "today": {
+      "de": "Heute",
+      "en": "Today"
+    },
+    "yesterday": {
+      "de": "Gestern",
+      "en": "Yesterday"
+    },
+    "en_us": {
+      "de": "de-AT",
+      "en": "en-US"
+    },
+    "copy": {
+      "de": "Kopieren",
+      "en": "Copy"
+    },
+    "copied": {
+      "de": "Kopiert",
+      "en": "Copied"
+    },
+    "delete": {
+      "de": "Löschen",
+      "en": "Delete"
+    },
+    "raw": {
+      "de": "Roh:",
+      "en": "Raw:"
+    },
+    "no_dictations_yet": {
+      "de": "Noch keine Diktate.",
+      "en": "No dictations yet."
+    },
+    "the_dictionary_is_empty": {
+      "de": "Wörterbuch ist leer.",
+      "en": "The dictionary is empty."
+    },
+    "recognition_hint": {
+      "de": "Erkennungshilfe",
+      "en": "Recognition hint"
+    },
+    "added": {
+      "de": "Hinzugefügt",
+      "en": "Added"
+    },
+    "e_g_press_enter_gogo": {
+      "de": "z.B. press enter, gogo",
+      "en": "e.g. press enter, gogo"
+    },
+    "remove": {
+      "de": "Entfernen",
+      "en": "Remove"
+    },
+    "default": {
+      "de": " (Standard)",
+      "en": " (default)"
+    },
+    "press_a_key_combination": {
+      "de": "Drücke Kombination …",
+      "en": "Press a key combination …"
+    },
+    "detected": {
+      "de": "Erkannt: ",
+      "en": "Detected: "
+    },
+    "click_save_to_apply": {
+      "de": " – noch speichern",
+      "en": " – click Save to apply"
+    },
+    "failed": {
+      "de": "Fehlgeschlagen",
+      "en": "Failed"
+    },
+    "saved": {
+      "de": "Gespeichert",
+      "en": "Saved"
+    },
+    "import_result": {
+      "de": "Importiert: {dictionary} Wörterbuch, {history} History",
+      "en": "Imported: {dictionary} dictionary entries, {history} history entries"
+    }
+  },
+  "native": {
+    "Dashboard öffnen": "Open dashboard",
+    "Pausieren": "Pause",
+    "Im Spiel / Vollbild pausieren": "Pause in games / full screen",
+    "Mit Windows starten": "Start with Windows",
+    "Beim Anmelden starten": "Start at login",
+    "Beenden": "Quit",
+    "Dashboard nicht verfuegbar": "Dashboard unavailable",
+    "Start auf Port {port} fehlgeschlagen - siehe Log.": "Could not start on port {port} - see the log.",
+    "Diktat automatisch beendet": "Dictation stopped automatically",
+    "Maximale Dauer ({duration} s) erreicht.": "Maximum duration ({duration} s) reached.",
+    "Zielfenster nicht fokussierbar": "Cannot focus the target window",
+    "Der Text liegt im Clipboard - mit Strg+V einfuegen.": "Your text is on the clipboard - press Ctrl+V to paste.",
+    "Lade Modelle …": "Loading models …",
+    "Text im Clipboard – Strg+V": "Text on clipboard – Ctrl+V",
+    "Fehler": "Error",
+    "phrase fehlt": "Phrase is required",
+    "Timeout - keine Eingabe erkannt": "Timed out - no input detected",
+    "kein App-Kontext": "No app context",
+    "WAV nicht gefunden:": "WAV file not found:",
+    "Modelle nicht geladen": "Models are not loaded",
+    "Text im Clipboard – Cmd+V": "Text on clipboard – Cmd+V"
+  }
+}
