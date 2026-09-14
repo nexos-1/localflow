@@ -24,6 +24,7 @@ from .audio import Recorder
 from .db import Database
 from .pipeline import Pipeline
 from .platform import get_backends
+from .i18n import translate
 from .settings import APP_DIR, Settings
 
 log = logging.getLogger("localflow")
@@ -128,6 +129,8 @@ class LocalFlowApp:
         self.overlay.set_glass(self.settings.get("glass_pill"))
         self.overlay.set_style(self.settings.get("overlay_font"),
                                self.settings.get("overlay_font_size"))
+        if hasattr(self.overlay, "set_language"):
+            self.overlay.set_language(self.settings.get("ui_language"))
         self.overlay.set_theme(self.settings.get("overlay_theme"))
         # Kein recorder.open() hier: der Mikrofon-Stream wird erst beim
         # Diktieren geoeffnet, damit Windows das Mikro nicht dauerhaft
@@ -171,7 +174,7 @@ class LocalFlowApp:
             log.exception("Dashboard-Start fehlgeschlagen (Port %s belegt?)", port)
             time.sleep(3)  # Tray existiert beim App-Start evtl. noch nicht
             self._notify("Dashboard nicht verfuegbar",
-                         f"Start auf Port {port} fehlgeschlagen - siehe Log.")
+                         translate("Start auf Port {port} fehlgeschlagen - siehe Log.", self.settings.get("ui_language"), port=port))
 
     # --- Aufnahme-Steuerung ---
 
@@ -364,7 +367,7 @@ class LocalFlowApp:
             if self._record_session == session and self.recorder.is_recording:
                 log.info("Maximale Diktatdauer (%ss) erreicht - Auto-Stopp", max_s)
                 self._notify("Diktat automatisch beendet",
-                             f"Maximale Dauer ({int(max_s)} s) erreicht.")
+                             translate("Maximale Dauer ({duration} s) erreicht.", self.settings.get("ui_language"), duration=int(max_s)))
                 if self.controller:
                     self.controller.force_stop()
         self._watchdog_timer = threading.Timer(max_s, check)
@@ -572,7 +575,8 @@ class LocalFlowApp:
     def _notify(self, title: str, message: str):
         try:
             if self.tray is not None:
-                self.tray.notify(message, title)
+                self.tray.notify(translate(message, self.settings.get("ui_language")),
+                                 translate(title, self.settings.get("ui_language")))
         except Exception:  # noqa: BLE001
             log.debug("Tray-Notification fehlgeschlagen", exc_info=True)
 
@@ -616,17 +620,17 @@ class LocalFlowApp:
             icon.stop()
 
         menu = pystray.Menu(
-            pystray.MenuItem("Dashboard öffnen", open_dashboard, default=True),
-            pystray.MenuItem("Pausieren", toggle_pause,
+            pystray.MenuItem(lambda item: translate("Dashboard öffnen", self.settings.get("ui_language")), open_dashboard, default=True),
+            pystray.MenuItem(lambda item: translate("Pausieren", self.settings.get("ui_language")), toggle_pause,
                              checked=lambda item: self._user_paused),
-            pystray.MenuItem("Im Spiel / Vollbild pausieren", toggle_fullscreen_pause,
+            pystray.MenuItem(lambda item: translate("Im Spiel / Vollbild pausieren", self.settings.get("ui_language")), toggle_fullscreen_pause,
                              checked=lambda item: bool(self.settings.get("pause_in_fullscreen"))),
-            pystray.MenuItem("Mit Windows starten" if sys.platform == "win32"
-                             else "Beim Anmelden starten", toggle_autostart,
+            pystray.MenuItem(lambda item: translate("Mit Windows starten", self.settings.get("ui_language")) if sys.platform == "win32"
+                             else translate("Beim Anmelden starten", self.settings.get("ui_language")), toggle_autostart,
                              checked=lambda item: is_autostart_enabled()),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(f"LocalFlow v{__version__}", None, enabled=False),
-            pystray.MenuItem("Beenden", quit_app),
+            pystray.MenuItem(lambda item: translate("Beenden", self.settings.get("ui_language")), quit_app),
         )
         self.tray = pystray.Icon("LocalFlow", make_icon(), "LocalFlow", menu)
         self.tray.run()

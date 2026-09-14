@@ -23,6 +23,8 @@ degradiert die Pille zum stillen No-op - das Diktat laeuft weiter.
 NullOverlay bleibt als expliziter Fallback fuer Umgebungen ohne pyobjc.
 """
 
+from ...i18n import translate
+
 import collections
 import logging
 import math
@@ -46,6 +48,9 @@ TICK_IDLE = 0.10            # unsichtbar: nur Queue abholen
 
 class NullOverlay:
     """API-kompatibler No-op (Fallback ohne pyobjc/WindowServer)."""
+
+    def set_language(self, value):
+        self._ui_language = value
 
     def start(self):
         log.info("Overlay-Fallback aktiv (NullOverlay) - Status-Feedback "
@@ -77,6 +82,7 @@ class DarwinOverlay:
     """Animierte Pill auf NSPanel; Vertrag identisch zum Windows-Overlay."""
 
     def __init__(self):
+        self._ui_language = "de"
         self._queue: queue.Queue = queue.Queue()
         self._panel = None
         self._view = None
@@ -86,6 +92,9 @@ class DarwinOverlay:
         self._st = None          # Zustands-Dict, existiert erst nach _setup
 
     # --- oeffentlicher Vertrag (beliebige Threads) ---------------------
+
+    def set_language(self, value):
+        self._ui_language = value
 
     def start(self):
         if self._started:
@@ -137,11 +146,11 @@ class DarwinOverlay:
         if state == "processing":
             return 64
         if state == "loading":
-            return 14 + 12 + 8 + self._measure("Lade Modelle …") + 14
+            return 14 + 12 + 8 + self._measure(translate("Lade Modelle …", self._ui_language)) + 14
         if state == "clipboard":
-            return 14 + self._measure("Text im Clipboard – Cmd+V") + 14
+            return 14 + self._measure(translate("Text im Clipboard – Cmd+V", self._ui_language)) + 14
         if state == "error":
-            return 14 + 7 + 8 + self._measure("Fehler") + 14
+            return 14 + 7 + 8 + self._measure(translate("Fehler", self._ui_language)) + 14
         return 100
 
     def _line_h(self) -> float:
@@ -534,13 +543,13 @@ class DarwinOverlay:
             p.setLineWidth_(2.0)
             self._color(mix(bg, dim, alpha)).setStroke()
             p.stroke()
-            self._draw_text(px + 34, cy, "Lade Modelle …", mix(bg, dim, alpha))
+            self._draw_text(px + 34, cy, translate("Lade Modelle …", self._ui_language), mix(bg, dim, alpha))
         elif state == "clipboard":
-            self._draw_text(px + 14, cy, "Text im Clipboard – Cmd+V",
+            self._draw_text(px + 14, cy, translate("Text im Clipboard – Cmd+V", self._ui_language),
                             mix(bg, fg, alpha))
         elif state == "error":
             self._fill_oval(px + 14, cy - 3.5, 7, 7, mix(bg, dim, alpha))
-            self._draw_text(px + 29, cy, "Fehler", mix(bg, fg, alpha))
+            self._draw_text(px + 29, cy, translate("Fehler", self._ui_language), mix(bg, fg, alpha))
 
     def _draw_frame(self):
         st = self._st

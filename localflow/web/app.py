@@ -3,12 +3,14 @@
 import logging
 import os
 
+from ..i18n import dashboard_messages, translate
+
 from flask import Flask, jsonify, render_template, request
 
 log = logging.getLogger("localflow.web")
 
 EDITABLE_SETTINGS = [
-    "hotkey", "hotkey2", "toggle_hotkey", "ptt_mode", "language", "ollama_model", "ai_cleanup",
+    "ui_language", "hotkey", "hotkey2", "toggle_hotkey", "ptt_mode", "language", "ollama_model", "ai_cleanup",
     "play_sounds", "min_duration_s", "paste_restore_delay", "cleanup_timeout_s",
     "audio_device", "beam_size", "cleanup_min_words", "tail_ms",
     "duck_audio", "duck_volume", "swallow_mouse_hotkey", "pause_in_fullscreen",
@@ -37,6 +39,10 @@ _STR_SETTINGS = {"hotkey", "hotkey2", "toggle_hotkey", "ptt_mode", "language",
 def _coerce_setting(key: str, value):
     """Wert auf den erwarteten Typ bringen. TypeError/ValueError = Wert
     unbrauchbar, der Key wird dann ignoriert statt gespeichert."""
+    if key == "ui_language":
+        if value not in ("de", "en"):
+            raise ValueError("ui_language: de/en required")
+        return value
     if key in _BOOL_SETTINGS:
         if isinstance(value, bool):
             return value
@@ -98,6 +104,11 @@ def _apply_runtime_changes(main_app, settings, changed: set):
             main_app._install_toggle()
         except Exception:
             log.exception("Toggle-Neustart fehlgeschlagen")
+    if "ui_language" in changed:
+        if hasattr(main_app.overlay, "set_language"):
+            main_app.overlay.set_language(settings.get("ui_language"))
+        if getattr(main_app, "tray", None):
+            main_app.tray.update_menu()
     if "audio_device" in changed:
         # Nur Geraet umstellen - NICHT open(): der Stream oeffnet sich erst
         # beim naechsten Diktat (Mikro-Anzeige nur waehrend Aufnahme).
@@ -176,7 +187,7 @@ def create_app(settings, db, main_app=None):
 
     @app.get("/")
     def index():
-        return render_template("index.html")
+        return render_template("index.html", messages=dashboard_messages(settings.get("ui_language")))
 
     @app.get("/api/stats")
     def stats():
@@ -220,7 +231,7 @@ def create_app(settings, db, main_app=None):
         data = body()
         phrase = (data.get("phrase") or "").strip()
         if not phrase:
-            return jsonify({"error": "phrase fehlt"}), 400
+            return jsonify({"error": translate("phrase fehlt", settings.get("ui_language"))}), 400
         did = db.add_dictionary(phrase, (data.get("replacement") or "").strip() or None,
                                 bool(data.get("is_snippet")))
         return jsonify({"id": did})
@@ -299,7 +310,7 @@ def create_app(settings, db, main_app=None):
             if main_app is not None:
                 main_app.end_capture_pause()
         if not combo:
-            return jsonify({"error": "Timeout - keine Eingabe erkannt"}), 408
+            return jsonify({"error": translate("Timeout - keine Eingabe erkannt", settings.get("ui_language"))}), 408
         return jsonify({"combo": combo})
 
     # Die maechtigen Debug-Routen (Overlay treiben, beliebige WAV verarbeiten
@@ -312,7 +323,7 @@ def create_app(settings, db, main_app=None):
         @app.post("/api/debug/overlay")
         def debug_overlay():
             if main_app is None:
-                return jsonify({"error": "kein App-Kontext"}), 400
+                return jsonify({"error": translate("kein App-Kontext", settings.get("ui_language"))}), 400
             data = body()
             main_app.overlay.set_state(data.get("state", "hidden"))
             if data.get("level_ramp"):
@@ -333,13 +344,13 @@ def create_app(settings, db, main_app=None):
         @app.post("/api/debug/dictate")
         def debug_dictate():
             if main_app is None:
-                return jsonify({"error": "kein App-Kontext"}), 400
+                return jsonify({"error": translate("kein App-Kontext", settings.get("ui_language"))}), 400
             data = body()
             wav = data.get("wav")
             if not wav or not os.path.exists(wav):
-                return jsonify({"error": f"WAV nicht gefunden: {wav}"}), 404
+                return jsonify({"error": translate("WAV nicht gefunden:", settings.get("ui_language")) + f" {wav}"}), 404
             if not main_app.models_ready.wait(timeout=180):
-                return jsonify({"error": "Modelle nicht geladen"}), 503
+                return jsonify({"error": translate("Modelle nicht geladen", settings.get("ui_language"))}), 503
             from ..inject import PASTE_OK, get_active_app, paste_text
             result = main_app.pipeline.process(wav)
             paste_status = "skipped"
@@ -358,7 +369,7 @@ def create_app(settings, db, main_app=None):
     @app.get("/api/debug/state")
     def debug_state():
         if main_app is None:
-            return jsonify({"error": "kein App-Kontext"}), 400
+            return jsonify({"error": translate("kein App-Kontext", settings.get("ui_language"))}), 400
         return jsonify({"models_ready": main_app.models_ready.is_set(),
                         "paused": main_app.paused,
                         "recording": main_app.recorder.is_recording,

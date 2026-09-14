@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de">
+{{ messages['html_lang_en'] | safe }}
 <head>
 <meta charset="utf-8">
 <title>LocalFlow</title>
@@ -64,108 +64,109 @@
 </style>
 </head>
 <body>
-<div id="offline">LocalFlow läuft gerade nicht. Starte die App (Startmenü → „LocalFlow"), diese Seite verbindet sich dann automatisch neu.</div>
+<div id="offline">{{ messages['localflow_is_not_running_open_localflow_from_the_start_menu_this_'] }}</div>
 <header>
   <div class="dot"></div><h1>LocalFlow</h1>
   <nav>
     <button data-tab="history" class="active">History</button>
-    <button data-tab="dictionary">Wörterbuch</button>
-    <button data-tab="settings">Einstellungen</button>
+    <button data-tab="dictionary">{{ messages['dictionary'] }}</button>
+    <button data-tab="settings">{{ messages['settings'] }}</button>
   </nav>
 </header>
 <main>
   <section id="tab-history">
     <div class="stats" id="stats"></div>
     <div class="card">
-      <input id="search" placeholder="History durchsuchen…">
+      <input id="search" placeholder="{{ messages['search_history'] }}">
     </div>
     <div class="card" id="history"></div>
     <div style="text-align:center;margin:8px 0 24px">
-      <button class="btn ghost" id="h-more">Mehr laden</button>
+      <button class="btn ghost" id="h-more">{{ messages['load_more'] }}</button>
     </div>
   </section>
 
   <section id="tab-dictionary" style="display:none">
     <div class="card">
       <div class="row">
-        <div><label>Phrase (gesprochen)</label><input id="d-phrase"></div>
-        <div><label>Ersetzung / Snippet-Text (leer = Erkennungshilfe)</label><input id="d-repl"></div>
-        <button class="btn" id="d-add">Hinzufügen</button>
+        <div><label>{{ messages['spoken_phrase'] }}</label><input id="d-phrase"></div>
+        <div><label>{{ messages['replacement_snippet_text_leave_blank_to_help_recognition'] }}</label><input id="d-repl"></div>
+        <button class="btn" id="d-add">{{ messages['add'] }}</button>
       </div>
-      <div class="checkrow"><input type="checkbox" id="d-snippet"><span>Snippet (Phrase sagen → Text wird eingefügt)</span></div>
+      <div class="checkrow"><input type="checkbox" id="d-snippet"><span>{{ messages['snippet_say_the_phrase_insert_the_text'] }}</span></div>
     </div>
     <div class="card" id="dict"></div>
   </section>
 
   <section id="tab-settings" style="display:none">
     <div class="card" id="settings-form">
-      <label>Diktat-Hotkey</label>
+      <label>{{ messages['interface_language'] }} <select id="s-ui_language"><option value="de">{{ messages['german'] }}</option><option value="en">English</option></select></label>
+      <label>{{ messages['dictation_hotkey'] }}</label>
       <div class="row">
         <div><input id="s-hotkey"></div>
-        <button class="btn ghost" id="cap-hotkey" style="white-space:nowrap">⌨ Aufnehmen</button>
+        <button class="btn ghost" id="cap-hotkey" style="white-space:nowrap">{{ messages['capture'] }}</button>
       </div>
-      <label>Zweiter Diktat-Hotkey (optional, läuft parallel zum ersten)</label>
+      <label>{{ messages['second_dictation_hotkey_optional_works_alongside_the_first'] }}</label>
       <div class="row">
-        <div><input id="s-hotkey2" placeholder="leer = deaktiviert"></div>
-        <button class="btn ghost" id="cap-hotkey2" style="white-space:nowrap">⌨ Aufnehmen</button>
+        <div><input id="s-hotkey2" placeholder="{{ messages['blank_disabled'] }}"></div>
+        <button class="btn ghost" id="cap-hotkey2" style="white-space:nowrap">{{ messages['capture'] }}</button>
       </div>
-      <label>Modus</label>
+      <label>{{ messages['mode'] }}</label>
       <select id="s-ptt_mode">
-        <option value="both">Halten + Doppeltipp = Freisprechen (empfohlen)</option>
-        <option value="hold">Nur Halten (loslassen stoppt)</option>
-        <option value="toggle">Drücken startet / drücken stoppt</option>
+        <option value="both">{{ messages['hold_to_talk_double_tap_for_hands_free_recommended'] }}</option>
+        <option value="hold">{{ messages['hold_to_talk_release_to_stop'] }}</option>
+        <option value="toggle">{{ messages['press_to_start_press_to_stop'] }}</option>
       </select>
-      <label>Zusätzlicher Toggle-Hotkey (optional, startet/stoppt Freisprechen)</label>
+      <label>{{ messages['additional_toggle_hotkey_optional_starts_stops_hands_free_dictati'] }}</label>
       <div class="row">
         <div><input id="s-toggle_hotkey"></div>
-        <button class="btn ghost" id="cap-toggle_hotkey" style="white-space:nowrap">⌨ Aufnehmen</button>
+        <button class="btn ghost" id="cap-toggle_hotkey" style="white-space:nowrap">{{ messages['capture'] }}</button>
       </div>
-      <div class="checkrow"><input type="checkbox" id="s-swallow_mouse_hotkey"><span>Maus-Hotkey verschluckt den Klick (nötig, damit markierter Text ersetzt statt der Cursor versetzt wird; deaktiviert dafür Browser-Vor/Zurück auf der Taste)</span></div>
-      <div class="checkrow"><input type="checkbox" id="s-pause_in_fullscreen"><span>Im Spiel / Vollbild automatisch pausieren: läuft vorne eine Vollbild-App (Spiel, randloses Fenster, F11-Vollbild), werden die Diktat-Hotkeys ignoriert und die Maus-Seitentaste geht ungestört ans Spiel. Wird nur beim Tastendruck geprüft, kein Hintergrund-Polling.</span></div>
-      <div class="checkrow"><input type="checkbox" id="s-voice_commands_enabled"><span>Sprachbefehle aktiv (am Ende des Diktats sagen) – der Befehl wird nicht getippt, sondern als Taste gedrückt</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-swallow_mouse_hotkey"><span>{{ messages['use_the_mouse_hotkey_exclusively_for_dictation_allows_selected_te'] }}</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-pause_in_fullscreen"><span>{{ messages['automatically_pause_in_games_full_screen_when_a_full_screen_app_i'] }}</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-voice_commands_enabled"><span>{{ messages['enable_voice_commands_say_them_at_the_end_of_dictation_presses_th'] }}</span></div>
       <div id="voice-cmd-editor" style="margin:6px 0 0 26px">
         <div id="voice-cmd-rows"></div>
-        <button type="button" class="btn ghost" id="voice-cmd-add" style="font-size:12px;padding:4px 10px;margin-top:4px">+ Befehl hinzufügen</button>
-        <div class="dim" style="font-size:11px;margin-top:5px">Taste wählen, Auslöser-Wörter dahinter (mehrere mit Komma). Wird nur am Satz-Ende erkannt. Tipp: 2 Wörter sind zuverlässiger als 1 (weniger Fehlauslösung), und Whisper hört „press enter" gern als „presenter".</div>
+        <button type="button" class="btn ghost" id="voice-cmd-add" style="font-size:12px;padding:4px 10px;margin-top:4px">{{ messages['add_command'] }}</button>
+        <div class="dim" style="font-size:11px;margin-top:5px">{{ messages['choose_a_key_then_enter_its_trigger_phrases_separate_multiple_phr'] }}</div>
       </div>
-      <label>Sprache</label>
-      <select id="s-language"><option value="auto">Automatisch</option><option value="de">Deutsch</option><option value="en">Englisch</option></select>
-      <label>Mikrofon</label>
-      <select id="s-audio_device"><option value="">Windows-Standard</option></select>
-      <label>Ollama-Modell (AI-Cleanup)</label>
+      <label>{{ messages['speech_recognition_language'] }}</label>
+      <select id="s-language"><option value="auto">{{ messages['automatic'] }}</option><option value="de">{{ messages['german'] }}</option><option value="en">{{ messages['english'] }}</option></select>
+      <label>{{ messages['microphone'] }}</label>
+      <select id="s-audio_device"><option value="">{{ messages['windows_default'] }}</option></select>
+      <label>{{ messages['ollama_model_ai_cleanup'] }}</label>
       <select id="s-ollama_model"></select>
-      <div class="checkrow"><input type="checkbox" id="s-ai_cleanup"><span>AI-Cleanup aktiv</span></div>
-      <div class="checkrow"><input type="checkbox" id="s-play_sounds"><span>Sounds abspielen</span></div>
-      <div class="checkrow"><input type="checkbox" id="s-duck_audio"><span>System-Audio während Aufnahme stummschalten (YouTube, Spotify …)</span></div>
-      <div class="checkrow"><input type="checkbox" id="s-live_preview"><span>Live-Vorschau: Transkript schon während des Sprechens in der Overlay-Pille zeigen (der finale, bereinigte Text wird erst beim Loslassen eingefügt)</span></div>
-      <div class="checkrow"><input type="checkbox" id="s-smart_spacing"><span>Smart Spacing: automatisch ein Leerzeichen einfügen, wenn das Diktat direkt an bestehenden Text ansetzt (in Terminals automatisch aus)</span></div>
-      <div class="checkrow"><input type="checkbox" id="s-type_enabled"><span>Kurze Diktate <b>tippen</b> statt einfügen: lässt die Zwischenablage komplett unberührt (Programme mit Zwischenablage-Überwachung melden sonst bei jedem Diktat eine Änderung). Dafür gibt es beim Tippen kein Smart Spacing.</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-ai_cleanup"><span>{{ messages['enable_ai_cleanup'] }}</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-play_sounds"><span>{{ messages['play_sounds'] }}</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-duck_audio"><span>{{ messages['mute_system_audio_while_recording_youtube_spotify'] }}</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-live_preview"><span>{{ messages['live_preview_show_the_transcript_in_the_floating_widget_while_you'] }}</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-smart_spacing"><span>{{ messages['smart_spacing_add_a_space_when_dictation_follows_existing_text_au'] }}</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-type_enabled"><span>{{ messages['b_type_b_short_dictations_instead_of_pasting_leaves_the_clipboard'] | safe }}</span></div>
       <div class="checkrow" style="margin-left:24px">
-        <span class="dim">bis</span>
+        <span class="dim"{{ messages['up_to'] | safe }}/span>
         <input type="number" id="s-type_max_chars" min="1" max="5000" step="50" style="width:90px">
-        <span class="dim">Zeichen tippen, längere Diktate einfügen</span>
+        <span class="dim">{{ messages['characters_paste_longer_dictations'] }}</span>
       </div>
-      <div class="checkrow"><input type="checkbox" id="s-autostart"><span>Mit Windows starten</span></div>
-      <div style="margin-top:16px"><button class="btn" id="s-save">Speichern</button></div>
+      <div class="checkrow"><input type="checkbox" id="s-autostart"><span>{{ messages['start_with_windows'] }}</span></div>
+      <div style="margin-top:16px"><button class="btn" id="s-save">{{ messages['save'] }}</button></div>
     </div>
     <div class="card">
-      <b>Widget-Design (Overlay-Pille)</b>
-      <p class="dim" style="margin:4px 0 10px">Änderungen wirken sofort - einfach ausprobieren.</p>
+      <b>{{ messages['floating_widget_appearance'] }}</b>
+      <p class="dim" style="margin:4px 0 10px">{{ messages['changes_take_effect_immediately'] }}</p>
       <label>Design</label>
       <select id="s-overlay_theme">
-        <option value="dark">Dunkel – schwarze Pille (Standard)</option>
-        <option value="light">Hell – mittelgraue Pille, weißer Text</option>
+        <option value="dark">{{ messages['dark_black_widget_default'] }}</option>
+        <option value="light">{{ messages['light_gray_widget_white_text'] }}</option>
       </select>
-      <label>Schriftart</label>
+      <label>{{ messages['font'] }}</label>
       <select id="s-overlay_font"></select>
-      <label>Schriftgröße</label>
+      <label>{{ messages['font_size'] }}</label>
       <select id="s-overlay_font_size"></select>
-      <div class="checkrow"><input type="checkbox" id="s-glass_pill"><span>Glas-Optik: Pille durchscheinend (Desktop schimmert durch – glasig, nicht verschwommen)</span></div>
+      <div class="checkrow"><input type="checkbox" id="s-glass_pill"><span>{{ messages['glass_effect_translucent_widget_the_desktop_shows_through_without'] }}</span></div>
     </div>
     <div class="card">
       <b>Wispr Flow Import</b>
-      <p class="dim" style="margin:6px 0 12px">Übernimmt Wörterbuch und History aus der installierten Wispr-Flow-App.</p>
-      <button class="btn ghost" id="s-import">Jetzt importieren</button>
+      <p class="dim" style="margin:6px 0 12px">{{ messages['import_the_dictionary_and_history_from_your_installed_wispr_flow_'] }}</p>
+      <button class="btn ghost" id="s-import">{{ messages['import_now'] }}</button>
     </div>
   </section>
 </main>
@@ -221,11 +222,11 @@ async function loadStats() {
   const box = $("#stats");
   box.replaceChildren();
   for (const [v, l] of [
-    [s.dictations, "Diktate"],
-    [s.total_words, "Wörter"],
-    [s.words_today, "Wörter heute"],
-    [fmtDauer(s.time_saved_s || 0), "Zeit gespart vs. Tippen"],
-    [Math.round(s.total_audio_s/60)+" min", "Audio gesamt"],
+    [s.dictations, {{ messages['dictations'] | tojson }}],
+    [s.total_words, {{ messages['words'] | tojson }}],
+    [s.words_today, {{ messages['words_today'] | tojson }}],
+    [fmtDauer(s.time_saved_s || 0), {{ messages['time_saved_compared_with_typing'] | tojson }}],
+    [Math.round(s.total_audio_s/60)+" min", {{ messages['total_audio'] | tojson }}],
   ]) {
     const d = el("div", "stat");
     d.append(el("div", "v", String(v)), el("div", "l", l));
@@ -240,24 +241,24 @@ function dayLabel(ts) {
   const d = new Date(ts*1000), now = new Date();
   const midnight = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((midnight(now) - midnight(d)) / 86400000);
-  if (diff === 0) return "Heute";
-  if (diff === 1) return "Gestern";
-  return d.toLocaleDateString("de-AT", {weekday:"long", day:"numeric", month:"long",
+  if (diff === 0) return {{ messages['today'] | tojson }};
+  if (diff === 1) return {{ messages['yesterday'] | tojson }};
+  return d.toLocaleDateString({{ messages['en_us'] | tojson }}, {weekday:"long", day:"numeric", month:"long",
     year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined});
 }
 
 function histItem(e) {
   const item = el("div", "hist-item");
   const time = el("div", "hist-time",
-    new Date(e.timestamp*1000).toLocaleTimeString("de-AT", {hour:"2-digit", minute:"2-digit"}));
+    new Date(e.timestamp*1000).toLocaleTimeString({{ messages['en_us'] | tojson }}, {hour:"2-digit", minute:"2-digit"}));
   const text = el("div", "hist-text", e.formatted_text || "");
 
   const actions = el("div", "hist-actions");
   const copy = el("button", null, "⧉");
-  copy.title = "Kopieren";
-  copy.onclick = ev => { ev.stopPropagation(); navigator.clipboard.writeText(e.formatted_text||""); toast("Kopiert"); };
+  copy.title = {{ messages['copy'] | tojson }};
+  copy.onclick = ev => { ev.stopPropagation(); navigator.clipboard.writeText(e.formatted_text||""); toast({{ messages['copied'] | tojson }}); };
   const del = el("button", null, "✕");
-  del.title = "Löschen";
+  del.title = {{ messages['delete'] | tojson }};
   del.onclick = async ev => {
     ev.stopPropagation();
     await fetch("/api/history/"+encodeURIComponent(e.id), {method:"DELETE"});
@@ -268,7 +269,7 @@ function histItem(e) {
   const breakdown = (e.stt_ms || e.cleanup_ms)
     ? ` · STT ${Math.round(e.stt_ms||0)} ms · Cleanup ${Math.round(e.cleanup_ms||0)} ms` : "";
   const sub = el("div", "hist-sub",
-    `${e.app || "?"} · ${e.language || "?"} · ${Math.round(e.latency_ms||0)} ms${breakdown}\nRoh: ${e.asr_text || ""}`);
+    `${e.app || "?"} · ${e.language || "?"} · ${Math.round(e.latency_ms||0)} ms${breakdown}\n${ {{ messages['raw'] | tojson }} } ${e.asr_text || ""}`);
 
   item.append(time, text, actions, sub);
   item.onclick = () => item.classList.toggle("open");
@@ -282,7 +283,7 @@ async function loadHistory(append) {
   const h = await (await fetch(url)).json();
   const box = $("#history");
   if (!append) { box.replaceChildren(); box.dataset.lastDay = ""; }
-  if (!h.length && !append) { box.append(el("span", "dim", "Noch keine Diktate.")); }
+  if (!h.length && !append) { box.append(el("span", "dim", {{ messages['no_dictations_yet'] | tojson }})); }
   for (const e of h) {
     const day = dayLabel(e.timestamp);
     if (day !== box.dataset.lastDay) {
@@ -301,14 +302,14 @@ async function loadDict() {
   const d = await (await fetch("/api/dictionary")).json();
   const box = $("#dict");
   box.replaceChildren();
-  if (!d.length) { box.append(el("span", "dim", "Wörterbuch ist leer.")); return; }
+  if (!d.length) { box.append(el("span", "dim", {{ messages['the_dictionary_is_empty'] | tojson }})); return; }
   for (const e of d) {
     const item = el("div", "dict-item");
     item.append(el("b", null, e.phrase));
     if (e.replacement) {
       item.append(el("span", null, "→"), el("span", "flex1", e.replacement));
     } else {
-      item.append(el("span", "flex1 dim", "Erkennungshilfe"));
+      item.append(el("span", "flex1 dim", {{ messages['recognition_hint'] | tojson }}));
     }
     if (e.is_snippet) item.append(el("span", "tag", "Snippet"));
     const del = el("button", "btn danger", "✕");
@@ -323,7 +324,7 @@ $("#d-add").onclick = async () => {
   await fetch("/api/dictionary", {method:"POST", headers:{"Content-Type":"application/json"},
     body: JSON.stringify({phrase, replacement: $("#d-repl").value, is_snippet: $("#d-snippet").checked})});
   $("#d-phrase").value = $("#d-repl").value = ""; $("#d-snippet").checked = false;
-  loadDict(); toast("Hinzugefügt");
+  loadDict(); toast({{ messages['added'] | tojson }});
 };
 
 const VOICE_KEYS = ["enter", "backspace", "escape", "tab", "delete"];
@@ -337,9 +338,9 @@ function voiceRow(key, phrases) {
   const inp = el("input");
   inp.style.flex = "1";
   inp.value = (phrases || []).join(", ");
-  inp.placeholder = "z.B. press enter, gogo";
+  inp.placeholder = {{ messages['e_g_press_enter_gogo'] | tojson }};
   const del = el("button", "btn danger", "✕");
-  del.type = "button"; del.title = "Entfernen";
+  del.type = "button"; del.title = {{ messages['remove'] | tojson }};
   del.onclick = () => row.remove();
   row.append(sel, inp, del);
   return row;
@@ -412,10 +413,10 @@ async function loadSettings() {
     (await fetch("/api/models")).json(),
   ]);
   const devSel = $("#s-audio_device");
-  devSel.replaceChildren(el("option", null, "Windows-Standard"));
+  devSel.replaceChildren(el("option", null, {{ messages['windows_default'] | tojson }}));
   devSel.firstChild.value = "";
   for (const d of devices) {
-    const o = el("option", null, d.name + (d.default ? " (Standard)" : ""));
+    const o = el("option", null, d.name + (d.default ? {{ messages['default'] | tojson }} : ""));
     o.value = String(d.index);
     devSel.append(o);
   }
@@ -425,7 +426,7 @@ async function loadSettings() {
   const names = models.includes(s.ollama_model) ? models : [s.ollama_model, ...models];
   for (const m of names) { const o = el("option", null, m); o.value = m; modSel.append(o); }
   modSel.value = s.ollama_model;
-  for (const k of ["hotkey","hotkey2","toggle_hotkey","language","ptt_mode"]) $("#s-"+k).value = s[k] ?? "";
+  for (const k of ["hotkey","hotkey2","toggle_hotkey","ui_language","language","ptt_mode"]) $("#s-"+k).value = s[k] ?? "";
   $("#s-ai_cleanup").checked = !!s.ai_cleanup;
   $("#s-play_sounds").checked = !!s.play_sounds;
   $("#s-duck_audio").checked = !!s.duck_audio;
@@ -449,15 +450,15 @@ async function loadSettings() {
 for (const target of ["hotkey", "hotkey2", "toggle_hotkey"]) {
   $("#cap-"+target).onclick = async (ev) => {
     const btn = ev.currentTarget;
-    btn.textContent = "Drücke Kombination …";
+    btn.textContent = {{ messages['press_a_key_combination'] | tojson }};
     btn.disabled = true;
     try {
       const r = await fetch("/api/hotkey/capture", {method:"POST"});
       const d = await r.json();
-      if (r.ok) { $("#s-"+target).value = d.combo; toast("Erkannt: " + d.combo + " – noch speichern"); }
-      else toast(d.error || "Fehlgeschlagen");
+      if (r.ok) { $("#s-"+target).value = d.combo; toast({{ messages['detected'] | tojson }} + d.combo + {{ messages['click_save_to_apply'] | tojson }}); }
+      else toast(d.error || {{ messages['failed'] | tojson }});
     } finally {
-      btn.textContent = "⌨ Aufnehmen";
+      btn.textContent = {{ messages['capture'] | tojson }};
       btn.disabled = false;
     }
   };
@@ -468,6 +469,7 @@ $("#s-save").onclick = async () => {
     hotkey: $("#s-hotkey").value, hotkey2: $("#s-hotkey2").value,
     toggle_hotkey: $("#s-toggle_hotkey").value,
     ptt_mode: $("#s-ptt_mode").value,
+    ui_language: $("#s-ui_language").value,
     language: $("#s-language").value, ollama_model: $("#s-ollama_model").value,
     audio_device: dev === "" ? null : parseInt(dev, 10),
     ai_cleanup: $("#s-ai_cleanup").checked, play_sounds: $("#s-play_sounds").checked,
@@ -484,12 +486,13 @@ $("#s-save").onclick = async () => {
     autostart: $("#s-autostart").checked,
   };
   await fetch("/api/settings", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
-  toast("Gespeichert");
+  if (body.ui_language !== document.documentElement.lang) location.reload();
+  toast({{ messages['saved'] | tojson }});
 };
 $("#s-import").onclick = async () => {
   const r = await fetch("/api/import-wispr", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
   const d = await r.json();
-  toast(r.ok ? `Importiert: ${d.dictionary} Wörterbuch, ${d.history} History` : d.error);
+  toast(r.ok ? {{ messages['import_result'] | tojson }}.replace("{dictionary}", d.dictionary).replace("{history}", d.history) : d.error);
   loadDict(); loadHistory(); loadStats();
 };
 

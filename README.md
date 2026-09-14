@@ -250,3 +250,18 @@ extracted audio stays on your machine and is git-ignored.
 LocalFlow is not affiliated with or endorsed by Wispr AI. "Wispr Flow"
 is a trademark of its respective owner and is referenced here solely to
 describe compatibility.
+
+English and German interfaces are available under Settings → Interface language.
+German remains the default; changing the interface does not change the speech
+recognition language or voice command phrases. Dashboard, Windows tray menus,
+notifications and overlay status labels update after saving. macOS overlay labels use the same catalog; actual macOS rendering has not
+been verified as part of this change.
+
+Windows setup asks for `de` or `en`; press Enter to retain an existing preference
+(or use German on a new install). For unattended setup, pass
+`-UiLanguage en` or `-UiLanguage de` to `install.ps1`.
+
+Interface messages live in `localflow/translations.json` and share one dashboard
+template. JavaScript messages use JSON escaping; only trusted HTML fragments use
+`safe`. Run `python tests/test_i18n.py` to check defaults, rendering, persistence,
+validation and native translations without opening the microphone or app.

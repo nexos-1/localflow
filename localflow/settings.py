@@ -40,6 +40,7 @@ DEFAULTS = {
     # Darf die PTT-Kombination NICHT enthalten, sonst feuert beim Toggle erst
     # der Halte-Hook und beide Modi kollidieren.
     "toggle_hotkey": "ctrl+alt+space",  # einmal druecken = Start, nochmal = Stop
+    "ui_language": "de",          # Interface only: de | en
     "language": "auto",             # "auto" | "de" | "en" | ...
     "allowed_languages": ["de", "en"],  # bei auto: Detektion auf diese beschraenken
     "whisper_model": "large-v3-turbo",
