@@ -15,7 +15,7 @@ EDITABLE_SETTINGS = [
     "max_duration_s",
     "voice_commands_enabled", "voice_commands", "live_preview", "glass_pill",
     "overlay_font", "overlay_font_size", "overlay_theme", "smart_spacing",
-    "type_max_chars",
+    "type_max_chars", "trailing_space",
 ]
 
 
@@ -25,7 +25,7 @@ EDITABLE_SETTINGS = [
 # ueberlebte via config.json sogar App-Neustarts.
 _BOOL_SETTINGS = {"ai_cleanup", "play_sounds", "duck_audio", "swallow_mouse_hotkey",
                   "pause_in_fullscreen", "voice_commands_enabled", "live_preview",
-                  "glass_pill", "smart_spacing"}
+                  "glass_pill", "smart_spacing", "trailing_space"}
 _INT_SETTINGS = {"beam_size", "cleanup_min_words", "tail_ms", "overlay_font_size",
                  "max_duration_s", "type_max_chars"}
 _FLOAT_SETTINGS = {"min_duration_s", "paste_restore_delay", "cleanup_timeout_s",

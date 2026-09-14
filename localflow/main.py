@@ -519,10 +519,17 @@ class LocalFlowApp:
                 # Preis: kein Smart Spacing, denn dessen Sonde misst ihrerseits
                 # ueber die Zwischenablage.
                 type_max = self.settings.get("type_max_chars") or 0
+                # Add spacing only to inserted text, keeping history unchanged.
+                # Commands must operate on the transcript itself: an added space
+                # would change Backspace and leave whitespace before Enter/Tab.
+                insert_text = result.final_text
+                if (self.settings.get("trailing_space") and not result.commands
+                        and not insert_text[-1].isspace()):
+                    insert_text += " "
                 if 0 < len(result.final_text) <= type_max:
-                    status = inj.type_text(result.final_text, target_hwnd=target_hwnd)
+                    status = inj.type_text(insert_text, target_hwnd=target_hwnd)
                 else:
-                    status = inj.paste_text(result.final_text,
+                    status = inj.paste_text(insert_text,
                                             restore_delay=self.settings.get("paste_restore_delay"),
                                             target_hwnd=target_hwnd,
                                             smart_spacing=smart)
