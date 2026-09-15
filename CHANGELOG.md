@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **Glas-Optik eindeutig**: "aus" ist jetzt deckend (100 % oben, 97 % unten,
+  vorher 94/90), "an" deutlich glasiger (68/52 statt 72/60). Der Schalter
+  wechselt nur die Deckkraft der Pillenflaeche; ein Weichzeichnen des
+  Hintergrunds gibt es fuer Layered Windows auf Windows nicht.
+
 ## 0.4.1 - 2026-09-15
 
 ### Added

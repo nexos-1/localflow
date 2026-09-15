@@ -24,7 +24,7 @@ THEMES = {
 }
 # Deckkraft des Verlaufs (oben, unten): unten laeuft die Pille ins
 # Transparente aus, im Glas-Modus deutlich staerker
-PILL_ALPHA = {"solid": (0.94, 0.90), "glass": (0.72, 0.60)}
+PILL_ALPHA = {"solid": (1.0, 0.97), "glass": (0.68, 0.52)}
 
 H = 48                      # Pill-Hoehe (logisch; x Monitor-Skalierung)
 FONT_SIZE = 18              # Schriftgroesse in der Pille (logisch)
