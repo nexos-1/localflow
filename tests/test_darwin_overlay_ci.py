@@ -63,13 +63,20 @@ def main():
     print(f"Pill sichtbar: {fr.size.width:.0f}x{fr.size.height:.0f} @ "
           f"({fr.origin.x:.0f},{fr.origin.y:.0f}), alpha={o._panel.alphaValue():.2f}")
 
-    # State-Morphs durchspielen
+    # State-Morphs durchspielen: Tipp-Fenster (Bogen) -> Freisprechen (Ring)
+    o.set_state("armed")
+    pump(0.3)
+    assert st["vis"] == "armed" and o._arc.v > 0.1, o._arc.v
     o.set_state("locked")
     pump(0.4)
     assert st["vis"] == "locked" and o._ring.v > 0.9, o._ring.v
+    assert o._arc.v < 0.05, o._arc.v
     o.set_state("processing")
     pump(0.4)
     assert st["vis"] == "processing"
+    o.set_state("done")
+    pump(0.5)
+    assert st["vis"] == "done" and o._check.v > 0.9, o._check.v
     o.set_state("hidden")
     pump(1.0)
     assert st["shown"] is False, "Pill blieb nach hidden sichtbar"

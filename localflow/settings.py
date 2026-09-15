@@ -84,7 +84,9 @@ DEFAULTS = {
     "glass_pill": False,
     # Widget-Design (Overlay-Pille): Schriftart + -groesse, live umschaltbar.
     "overlay_font": "Segoe UI",
-    "overlay_font_size": 11,
+    # Logische Pixel (x Monitor-Skalierung). Alter Standard war 11 (Tk-Pille);
+    # Werte <= 12 aus alten Configs werden beim Laden auf 18 gehoben.
+    "overlay_font_size": 18,
     # "dark" = schwarze Pille (Standard) | "light" = mittelgraue Pille,
     # weisser Text (auf hellen Desktops/Apps angenehmer).
     "overlay_theme": "dark",
@@ -107,6 +109,17 @@ class Settings:
             with open(self.path, encoding="utf-8") as f:
                 stored = json.load(f)
             self.data.update({k: v for k, v in stored.items() if k in DEFAULTS})
+            # Migration: die Layered-Window-Pille ist groesser als die alte
+            # Tk-Pille; ein gespeicherter 9-12-px-Wert stammt aus der alten
+            # Skala und saehe jetzt winzig aus.
+            try:
+                if int(self.data.get("overlay_font_size") or 0) <= 12:
+                    self.data["overlay_font_size"] = DEFAULTS["overlay_font_size"]
+                    log.info("overlay_font_size aus alter Pillen-Skala auf %d angehoben",
+                             DEFAULTS["overlay_font_size"])
+                    self.save()
+            except (TypeError, ValueError):
+                self.data["overlay_font_size"] = DEFAULTS["overlay_font_size"]
         except FileNotFoundError:
             self.save()
         except Exception as e:  # noqa: BLE001

@@ -65,6 +65,9 @@ class DictationController:
     on_stop()   -> Aufnahme stoppen und verarbeiten
     on_cancel() -> Aufnahme verwerfen (versehentlicher Einzeltipp)
     on_lock()   -> Freisprechen aktiviert (nur UI-Feedback)
+    on_arm()    -> kurzer Tipp, Tipp-Fenster laeuft (nur UI-Feedback:
+                   die Pille deutet mit einem Ringbogen an, dass ein
+                   zweiter Tipp jetzt Freisprechen bedeutet)
     """
 
     IDLE, HOLD, ARMED, LOCKED, STOPPING = "idle", "hold", "armed", "locked", "stopping"
@@ -72,11 +75,12 @@ class DictationController:
     def __init__(self, on_start, on_stop, on_cancel=None, on_lock=None,
                  mode: str = "both", tap_max_s: float = 0.35,
                  double_tap_window_s: float = 0.40, toggle_guard_s: float = 0.40,
-                 clock=time.monotonic):
+                 clock=time.monotonic, on_arm=None):
         self.on_start = on_start
         self.on_stop = on_stop
         self.on_cancel = on_cancel or on_stop
         self.on_lock = on_lock or (lambda: None)
+        self.on_arm = on_arm or (lambda: None)
         self.mode = mode
         self.tap_max_s = tap_max_s
         self.double_tap_window_s = double_tap_window_s
@@ -158,6 +162,7 @@ class DictationController:
                                                         self._armed_timeout)
                     self._armed_timer.daemon = True
                     self._armed_timer.start()
+                    self.on_arm()
                 else:
                     self._state = self.IDLE
                     self.on_stop()

@@ -119,6 +119,16 @@ def set_dpi_awareness():
     """No-op: macOS skaliert Fenster selbst (Retina-Backing)."""
 
 
+def prefers_reduced_motion() -> bool:
+    """macOS "Bewegung reduzieren" (Bedienungshilfen). Ohne pyobjc: False."""
+    try:
+        from AppKit import NSWorkspace
+        return bool(NSWorkspace.sharedWorkspace().accessibilityDisplayShouldReduceMotion())
+    except Exception:  # noqa: BLE001
+        log.debug("Reduced-Motion-Abfrage (darwin) fehlgeschlagen", exc_info=True)
+    return False
+
+
 def is_fullscreen_app_active() -> bool:
     """Pendant zur Win32-Vollbild-Erkennung ("im Spiel pausieren").
     ASSUMPTION (ungetestet): das vorderste Fenster der aktiven App bedeckt

@@ -22,6 +22,7 @@ from . import __version__
 from .appicon import make_icon
 from .audio import Recorder
 from .db import Database
+from .overlay_model import CLIPBOARD_HOLD_S, DONE_HOLD_S, ERROR_HOLD_S, WAVE_STATES
 from .pipeline import Pipeline
 from .platform import get_backends
 from .settings import APP_DIR, Settings
@@ -118,6 +119,7 @@ class LocalFlowApp:
         self._toggle_hotkey = None
         self._fullscreen_logged = False     # 1 Log-Zeile pro Vollbild-Phase, kein Spam
         self.tray: pystray.Icon | None = None
+        self._tray_variant = "ready"         # zuletzt gesetzte Icon-Variante
 
     # --- Lebenszyklus ---
 
@@ -129,6 +131,13 @@ class LocalFlowApp:
         self.overlay.set_style(self.settings.get("overlay_font"),
                                self.settings.get("overlay_font_size"))
         self.overlay.set_theme(self.settings.get("overlay_theme"))
+        try:
+            reduced = bool(self.backends.integration.prefers_reduced_motion())
+        except Exception:  # noqa: BLE001 - Kosmetik, nie fatal
+            reduced = False
+        if reduced:
+            log.info("Systemeinstellung 'Bewegung reduzieren' aktiv - Pille ohne Slide")
+        self.overlay.set_reduced_motion(reduced)
         # Kein recorder.open() hier: der Mikrofon-Stream wird erst beim
         # Diktieren geoeffnet, damit Windows das Mikro nicht dauerhaft
         # als "in Verwendung" anzeigt.
@@ -153,8 +162,9 @@ class LocalFlowApp:
             # Laeuft gerade schon ein Diktat, zeigt die Pill noch "Lade
             # Modelle" - jetzt auf den echten Aufnahme-State weiterschalten.
             if self.recorder.is_recording:
-                locked = self.controller and self.controller.state == "locked"
-                self._set_overlay_state("locked" if locked else "recording")
+                cstate = self.controller.state if self.controller else "hold"
+                self._set_overlay_state(
+                    {"locked": "locked", "armed": "armed"}.get(cstate, "recording"))
         except Exception:
             log.exception("Modell-Laden fehlgeschlagen")
 
@@ -189,6 +199,7 @@ class LocalFlowApp:
                 on_stop=self._on_dictate_stop,
                 on_cancel=self._on_dictate_cancel,
                 on_lock=self._on_dictate_lock,
+                on_arm=self._on_dictate_arm,
                 mode=self.settings.get("ptt_mode"),
             )
         else:
@@ -275,6 +286,25 @@ class LocalFlowApp:
         self._overlay_state = state
         self._overlay_state_ts = time.monotonic()
         self.overlay.set_state(state)
+        self._update_tray_icon()
+
+    def _update_tray_icon(self):
+        """Tray-Icon spiegelt den Zustand: Pause grau, Aufnahme invertiert
+        (weisse Scheibe), sonst orange. Nur bei echtem Wechsel neu setzen -
+        Shell_NotifyIcon soll nicht pro Overlay-Event feuern."""
+        if self._user_paused:
+            variant = "paused"
+        elif self._overlay_state in WAVE_STATES:
+            variant = "recording"
+        else:
+            variant = "ready"
+        if variant == self._tray_variant or self.tray is None:
+            return
+        self._tray_variant = variant
+        try:
+            self.tray.icon = make_icon(variant=variant)
+        except Exception:  # noqa: BLE001 - Kosmetik, nie fatal
+            log.debug("Tray-Icon-Wechsel fehlgeschlagen", exc_info=True)
 
     def _overlay_orphan_guard(self):
         """Sicherheitsnetz: zeigt die Pill einen Nicht-hidden-Zustand, obwohl
@@ -401,6 +431,13 @@ class LocalFlowApp:
             # Kurzes Intervall = haeufigere Updates. Die Transkription selbst
             # dauert ~150-250ms, macht mit diesem Sleep ~0.35-0.45s pro Update.
             time.sleep(0.18)
+
+    def _on_dictate_arm(self):
+        """Kurzer Tipp im Modus "both": das Tipp-Fenster laeuft. Die Pille
+        deutet mit einem Ringbogen an, dass ein zweiter Tipp jetzt
+        Freisprechen bedeutet (Antizipation statt Stillstand)."""
+        if self.recorder.is_recording:
+            self._set_overlay_state("armed")
 
     def _on_dictate_lock(self):
         """Doppeltipp: Freisprechen aktiv, Aufnahme laeuft weiter."""
@@ -546,14 +583,18 @@ class LocalFlowApp:
                 self._set_overlay_if_current(session, "clipboard")
                 self._notify("Zielfenster nicht fokussierbar",
                              "Der Text liegt im Clipboard - mit Strg+V einfuegen.")
-                time.sleep(2.5)
+                time.sleep(CLIPBOARD_HOLD_S)
+            elif status == inj.PASTE_OK:
+                # Completion-Feedback: Haken in der Pille, kein dritter Sound
+                self._set_overlay_if_current(session, "done")
+                time.sleep(DONE_HOLD_S)
             self._set_overlay_if_current(session, "hidden")
         except Exception:
             log.exception("Verarbeitung fehlgeschlagen")
             if self.settings.get("play_sounds"):
                 self.backends.sounds.play("error")
             self._set_overlay_if_current(session, "error")
-            time.sleep(1.5)
+            time.sleep(ERROR_HOLD_S)
             self._set_overlay_if_current(session, "hidden")
 
     def begin_capture_pause(self):
@@ -586,7 +627,7 @@ class LocalFlowApp:
             self._user_paused = not self._user_paused
             with self._capture_lock:
                 self.paused = self._user_paused or self._capture_count > 0
-            icon.icon = make_icon("#9a9a9a" if self._user_paused else "#ff9500")
+            self._update_tray_icon()
 
         def toggle_autostart(icon, item):
             set_autostart(not is_autostart_enabled())

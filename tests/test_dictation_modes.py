@@ -15,12 +15,14 @@ class Probe:
     def stop(self): self.events.append("stop")
     def cancel(self): self.events.append("cancel")
     def lock(self): self.events.append("lock")
+    def arm(self): self.events.append("arm")
 
 
 def make(mode, clock):
     p = Probe()
     c = DictationController(p.start, p.stop, p.cancel, p.lock, mode=mode,
-                            tap_max_s=0.35, double_tap_window_s=0.4, clock=clock)
+                            tap_max_s=0.35, double_tap_window_s=0.4, clock=clock,
+                            on_arm=p.arm)
     return p, c
 
 
@@ -36,13 +38,13 @@ print("Halten OK:", p.events)
 # --- Doppeltipp -> Freisprechen -> Druck stoppt ---
 t = [0.0]; p, c = make("both", lambda: t[0])
 c.combo_down(); t[0] += 0.1; c.combo_up()          # Tipp 1 (kurz) -> ARMED
-assert c.state == "armed" and p.events == ["start"]
+assert c.state == "armed" and p.events == ["start", "arm"]   # arm = UI-Antizipation
 t[0] += 0.2; c.combo_down()                          # Tipp 2 -> LOCKED
-assert c.state == "locked" and p.events == ["start", "lock"]
+assert c.state == "locked" and p.events == ["start", "arm", "lock"]
 t[0] += 0.05; c.combo_up()                           # Loslassen von Tipp 2: ignoriert
 assert c.state == "locked"
 t[0] += 5.0; c.combo_down()                          # dritter Druck stoppt
-assert p.events == ["start", "lock", "stop"], p.events
+assert p.events == ["start", "arm", "lock", "stop"], p.events
 c.combo_up()
 assert c.state == "idle"
 print("Doppeltipp-Freisprechen OK:", p.events)
@@ -51,7 +53,7 @@ print("Doppeltipp-Freisprechen OK:", p.events)
 t = [0.0]; p, c = make("both", lambda: t[0])
 c.combo_down(); t[0] += 0.1; c.combo_up()
 time.sleep(0.55)  # Timer (0.4s) ablaufen lassen
-assert p.events == ["start", "cancel"], p.events
+assert p.events == ["start", "arm", "cancel"], p.events
 assert c.state == "idle"
 print("Einzeltipp-Cancel OK:", p.events)
 
@@ -98,7 +100,7 @@ print("Toggle-Sperre Grenze OK")
 # --- Sperre gilt NICHT in "both": dort ist der Doppeltipp das Freisprechen ---
 t = [0.0]; p, c = make("both", lambda: t[0])
 c.combo_down(); t[0] += 0.1; c.combo_up(); t[0] += 0.1; c.combo_down()
-assert c.state == "locked" and p.events == ["start", "lock"], p.events
+assert c.state == "locked" and p.events == ["start", "arm", "lock"], p.events
 c.combo_up()
 print("Doppeltipp in both weiterhin OK")
 
