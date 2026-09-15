@@ -3,6 +3,67 @@
 ## Unreleased
 
 ### Added
+- **Pille als Layered Window mit Per-Pixel-Alpha** (Windows): overlay.py
+  zeichnet nicht mehr mit Tk, sondern rendert jeden Frame mit PIL in 3-fachem
+  Supersampling (geglaettete Stadion-Kanten, echte Transparenz, weicher
+  Schatten, Lichtkante, FreeType-Text mit Segoe UI Semibold) und zeigt ihn per
+  UpdateLayeredWindow. Neue Groesse und Optik nach Apples Status-Pille:
+  54 px hoch, 14 px Segoe UI Semibold, Koerper als Verlauf von Dunkelgrau
+  oben in fast transparentes Schwarz unten, weicher Schatten, breitere
+  Waveform. Beim Sprechen kreisen links wenige grosse, leuchtende Punkte
+  (Thinking-Orbs "working", eigenes Pillen-Preset mit Halo) statt des
+  pulsierenden Punkts; Ring und Ringbogen legen sich um den Orb, Inhalte
+  crossfaden wirklich. Gemessen: 60 fps stabil (Tk: ~43 fps). Pille
+  skaliert mit der Monitor-DPI. Watchdog, Topmost-Nachdruck, virtuelle
+  Desktops und Multi-Monitor-Positionierung unveraendert.
+- **Pille auf Federn** (overlay_model.Spring, Apple-Parameter response +
+  damping): Ein-/Ausblenden, Breite, Ring und Bubble sind jetzt Federn
+  statt fester Easings. Ein Hide, das ein laufendes Show unterbricht,
+  uebernimmt die Geschwindigkeit und bremst weich ab (gemessen: kein
+  Alpha-Sprung ueber 40/255 pro Frame, 90 % Sichtbarkeit nach ~160 ms).
+  Gilt fuer Windows (Tk) und den macOS-Port (AppKit) gleichermassen.
+- **Tipp-Antizipation** im Modus "Halten + Doppeltipp": nach einem kurzen
+  Tipp haelt der Punkt den Atem an und ein Ringbogen waechst auf ein
+  Viertel - der zweite Tipp schliesst ihn mit sichtbarem Ueberschwingen
+  zum Freisprech-Ring (neuer Overlay-Zustand `armed`, Controller-Callback
+  `on_arm`). Bleibt der zweite Tipp aus, zieht sich der Bogen zurueck.
+- **Abschluss-Haken**: nach erfolgreichem Einfuegen zeichnet sich in der
+  Pille ein Haken (0,24 s), dann geht sie wie gekommen nach unten (neuer
+  Zustand `done`). Vorher verschwand die Pille kommentarlos.
+- **Thinking-Orb als Verarbeitungs-Indikator**: statt dreier wandernder
+  Punkte laeuft der "working"-Orb (Partikel auf gekippten Bahnen) aus
+  thinking-orbs (MIT, Jakub Antalik) - als Python-Port der Geometrie,
+  numerisch identisch mit der Originalbibliothek (Golden-Vektor-Test,
+  max. Abweichung 5e-7). Waechst beim Betreten aus der Pillenmitte.
+- **Reduced Motion**: ist "Animationen anzeigen" (Windows) bzw. "Bewegung
+  reduzieren" (macOS) aus, blendet die Pille per Crossfade ohne Slide, der
+  Ring schwingt nicht ueber, der Orb steht als Standbild.
+- **Dashboard: helles und dunkles Schema** folgen der Systemeinstellung
+  (kein App-Schalter). Alle Farben als Tokens; jeder Text erreicht
+  mindestens 4,5:1 (vorher: Navigation 3,5:1, Platzhalter 4,4:1).
+  Sichtbarer Tastaturfokus auf allen Bedienelementen, Tabs als echte
+  ARIA-Tabs mit Pfeiltasten, Tab-Wechsel per Crossfade, Toast mit Feder.
+  `prefers-reduced-motion` und `prefers-reduced-transparency` werden
+  beachtet.
+- **Dashboard-Struktur**: Kopfleiste als schwebende Glas-Toolbar (einzige
+  Glasflaeche, Inhalte scrollen darunter durch), Einstellungen in Gruppen
+  (Diktat, Sprache und Audio, Text und Einfuegen, System, Pille, Import)
+  mit Schaltern und Beschreibungszeile statt langer Checkbox-Saetze,
+  App-Chip an jedem Verlaufseintrag, Status-Punkt wird grau, wenn die App
+  offline ist.
+- **Tray-Icon** neu aus gefuellten Formen (Kapsel, Kragen, Stiel, Fuss)
+  mit Supersampling, drei Zustaende: orange (bereit), invertiert weiss
+  (Aufnahme laeuft), grau (pausiert).
+
+### Changed
+- Helle Pille ist jetzt weiss mit dunkler Schrift (17:1) statt mittelgrau
+  mit weisser Schrift, dunkle Pille dunkelgrau-schwarz mit Verlauf statt
+  reinem Schwarz; Clipboard-Hinweis heisst "In der Zwischenablage ·
+  Strg+V" mit Glyphe; Standzeiten: Zwischenablage 2,5 s, Fehler 2 s.
+- Frame-Uhr der Pille wird nach dem Einblend-Setup neu verankert und die
+  feine Timer-Aufloesung sofort aktiviert - der erste sichtbare Frame
+  sprang vorher auf bis zu 80 % (gemessen 0 -> 107/255).
+
 - **Im Spiel / Vollbild automatisch pausieren** (Option, Standard an; im
   Dashboard und per Haekchen im Tray-Menue schaltbar): laeuft vorne eine
   Vollbild-App (Spiel, randloses Fenster, F11-Vollbild), ignoriert LocalFlow

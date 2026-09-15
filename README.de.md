@@ -65,10 +65,11 @@ AI-Cleanup bereinigte Text. Abschaltbar in den Einstellungen.
 Die Flow-Bar (kleine schwarze Pill unten in der Bildschirmmitte, monochrom)
 zeigt: pulsierender Punkt + live Waveform bzw. Live-Transkript = Aufnahme
 (Pegel adaptiv - die Balken skalieren sich automatisch auf die tatsaechliche
-Mikrofonlautstaerke), Ring statt Punkt = Freisprechen, drei wandernde
-Punkte = Verarbeitung. Alle Uebergaenge sind animiert. Optik (Design-Thema
-Dunkel/Hell, Schriftart, Schriftgroesse, Glas-Look) ist im Dashboard unter
-"Widget-Design" live einstellbar. Eigene Sounds: WAVs nach `data/sounds/`
+Mikrofonlautstaerke), Ring statt Punkt = Freisprechen, Ringbogen = Tipp-
+Fenster nach kurzem Tipp, Thinking-Orb = Verarbeitung, Haken = eingefuegt.
+Alle Uebergaenge laufen als Federn (unterbrechbar, kein Abreissen). Optik
+(Design-Thema Dunkel/Hell, Schriftart, Schriftgroesse, Glas-Look) ist im
+Dashboard unter "Pille (Overlay)" live einstellbar. Eigene Sounds: WAVs nach `data/sounds/`
 legen (start/stop/lock/error.wav) und die Namen in `custom.txt` eintragen -
 sie werden nie von der Generierung ueberschrieben.
 
@@ -221,6 +222,8 @@ Benchmark auf 20 echten Diktaten (eigene Stimme, Focusrite):
 .venv\Scripts\python.exe tests\test_commands.py        # Sprachbefehl-Erkennung
 .venv\Scripts\python.exe tests\test_cleanup_start.py   # Ollama-Doppelstart-Schutz
 .venv\Scripts\python.exe tests\test_levelmeter.py      # adaptiver Pegelmesser
+.venv\Scripts\python.exe tests\test_overlay_model.py   # Pillen-Federn, Tweens, Haken
+.venv\Scripts\python.exe tests\test_orb_geometry.py    # Thinking-Orb-Port gegen Golden-Vektoren
 .venv\Scripts\python.exe tests\test_smart_spacing.py   # Smart-Spacing-Entscheidungslogik
 .venv\Scripts\python.exe tests\test_darwin_port.py     # macOS-Backend (portable Pruefungen)
 .venv\Scripts\python.exe tests\test_clipboard.py       # Clipboard-Erhaltung (Text + Dateien)

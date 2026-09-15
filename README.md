@@ -43,9 +43,10 @@ dictionary and dictation history. German README: [README.de.md](README.de.md)
   in ~100 ms while you dictate and are restored exactly afterwards; the
   recording head where audio was still audible is trimmed automatically
 - **Animated overlay pill**: monochrome, live waveform with auto-gain,
-  smooth state transitions, live transcript, hover-to-expand; widget design
-  panel with dark/light theme, glass look, font family and size - all
-  applied live
+  spring-driven state transitions (interruptible, velocity-preserving), tap
+  anticipation for hands-free mode, a thinking-orb while processing, a check
+  mark once pasted, live transcript, hover-to-expand; pill design panel with
+  dark/light theme, glass look, font family and size - all applied live
 - **Custom sounds**: replace the start/stop/hands-free chimes with your own
   WAVs (drop them into `data/sounds/` and list their names in
   `custom.txt` - they survive app updates)
@@ -220,6 +221,8 @@ Run individual suites from `tests/` with the venv Python, e.g.:
 .venv\Scripts\python.exe tests\test_commands.py         # voice command parsing
 .venv\Scripts\python.exe tests\test_cleanup_start.py    # Ollama no-double-spawn
 .venv\Scripts\python.exe tests\test_levelmeter.py       # adaptive level meter
+.venv\Scripts\python.exe tests\test_overlay_model.py    # pill springs, tweens, check mark
+.venv\Scripts\python.exe tests\test_orb_geometry.py     # thinking-orb port vs. golden vectors
 .venv\Scripts\python.exe tests\test_smart_spacing.py    # smart-spacing decision logic
 .venv\Scripts\python.exe tests\test_clipboard.py        # clipboard preservation
 .venv\Scripts\python.exe tests\test_darwin_port.py      # macOS backend (portable checks)

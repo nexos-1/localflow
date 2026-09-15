@@ -21,7 +21,7 @@ local LLM (Ollama) for cleanup. No network calls beyond localhost.
 | `pipeline.py` | STT -> voice-command extraction -> cleanup -> dictionary/snippets -> history; GPU inference serialized |
 | `inject.py` | Clipboard save -> set -> Ctrl+V -> restore (multi-format preservation: text, images, file lists); paste bound to the window that was focused at dictation time; synthetic key sender for voice commands |
 | `ducking.py` | System audio mute during recording: single COM worker thread (no volume races), fast fade, crash recovery via state file |
-| `overlay.py` | Animated overlay pill (tkinter, separate thread): waveform, live transcript, hover-to-expand, glass look; all state via a queue |
+| `overlay.py` | Animated overlay pill (Win32 layered window with per-pixel alpha, PIL renderer at 3x supersampling, separate thread): listening/working orbs, waveform, live transcript, hover-to-expand, glass look; all state via a queue |
 | `overlay_model.py` | platform-neutral pill choreography (tweens, easing, colors, text layout, timing) shared by the Tk (Windows) and AppKit (macOS) overlays |
 | `db.py` | SQLite: history + dictionary |
 | `settings.py` | JSON config in the data directory |

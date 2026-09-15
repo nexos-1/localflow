@@ -116,7 +116,7 @@ Jeweils ein kurzes Diktat hinein:
 - [ ] Position: unten mittig, knapp ueber dem Dock-Bereich, richtiger Monitor
 - [ ] Pill faengt keine Klicks ab (durch die - unsichtbare wie sichtbare -
       Pill hindurchklicken funktioniert)
-- [ ] Dashboard -> Einstellungen -> Widget-Design: Thema Hell/Dunkel,
+- [ ] Dashboard -> Einstellungen -> Pille (Overlay): Thema Hell/Dunkel,
       Glas-Look, Schriftgroesse - wirken sofort auf die Pill
 - [ ] Screenshots: Pill eingeklappt (Waveform), mit Live-Text, ausgeklappt
       (Hover), im hellen Thema
