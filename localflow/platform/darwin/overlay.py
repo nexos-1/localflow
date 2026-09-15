@@ -35,8 +35,8 @@ from ...overlay_model import (
     MATERIALIZE_FROM, MAX_TEXT_PX,
     MIN_VISIBLE_S, MORPH_S, N_BARS, ORB_GROW_S, ORB_LISTEN_SIZE, ORB_LISTENING,
     ORB_ONLY_W, ORB_PRESET, ORB_PROCESSING, ORB_SIZE,
-    PAD_BOTTOM, PAD_R, PAD_TOP,
-    REDUCED_FADE_S, RING_BOUNCE, SLIDE_PX, SOLID_ALPHA, SPRING_ALPHA, SPRING_LEAN,
+    PAD_BOTTOM, PAD_R, PAD_TOP, POSITIONS,
+    REDUCED_FADE_S, RING_BOUNCE, SIDE_PAD, SLIDE_PX, SOLID_ALPHA, SPRING_ALPHA, SPRING_LEAN,
     SPRING_ARC, SPRING_EXPAND, SPRING_HIDE, SPRING_RING, SPRING_SHOW,
     SPRING_WIDTH, TEXT_STATES, THEMES, WAVE_DT, WAVE_LEFT, WAVE_STATES,
     Spring, Tween, check_path, clamp, ease_out, fit_text_tail, mix, orb_dots,
@@ -84,6 +84,12 @@ class NullOverlay:
         pass
 
     def set_error(self, reason: str):
+        pass
+
+    def set_position(self, position: str):
+        pass
+
+    def set_margin(self, margin_px: float):
         pass
 
 
@@ -142,6 +148,22 @@ class DarwinOverlay:
 
     def set_error(self, reason: str):
         self._queue.put(("error", (reason or "").strip()))
+
+    def set_position(self, position: str):
+        self._queue.put(("position", position if position in POSITIONS else POSITIONS[0]))
+
+    def set_margin(self, margin_px: float):
+        try:
+            m = max(0.0, min(400.0, float(margin_px)))
+        except (TypeError, ValueError):
+            m = float(BOTTOM_MARGIN)
+        self._queue.put(("margin", m))
+
+    def _anchor(self) -> tuple[str, str]:
+        pos = (self._st or {}).get("position") or POSITIONS[0]
+        vert, _, horiz = pos.partition("-")
+        return ("top" if vert == "top" else "bottom",
+                horiz if horiz in ("left", "right") else "center")
 
     def _error_text(self) -> str:
         reason = (self._st or {}).get("error") or ""
@@ -206,6 +228,8 @@ class DarwinOverlay:
                 "showing": None,     # Praesenz-Richtung (Feder-Tuning)
                 "held_since": None,  # Hotkey gehalten seit (Bubble nach HOLD_EXPAND_S)
                 "error": "",         # Fehlergrund
+                "position": POSITIONS[0],
+                "margin": float(BOTTOM_MARGIN),
             }
             self._st = st
             st["line_h"] = self._line_h()
@@ -270,10 +294,19 @@ class DarwinOverlay:
         if screen is None:
             return
         vf = screen.visibleFrame()  # Arbeitsflaeche (ohne Dock/Menueleiste)
-        x = vf.origin.x + vf.size.width / 2 - self._max_w / 2
-        # Fenster-UNTERKANTE so, dass die eingeklappte Pill-Unterkante
-        # BOTTOM_MARGIN ueber dem Arbeitsflaechen-Rand sitzt (wie Windows).
-        y = vf.origin.y + BOTTOM_MARGIN - PAD_BOTTOM
+        vert, horiz = self._anchor()
+        margin = float(self._st["margin"])
+        if horiz == "left":
+            x = vf.origin.x + margin - SIDE_PAD
+        elif horiz == "right":
+            x = vf.origin.x + vf.size.width - (margin - SIDE_PAD) - self._max_w
+        else:
+            x = vf.origin.x + vf.size.width / 2 - self._max_w / 2
+        # AppKit: y nach oben, Panel-Origin = linke UNTERE Ecke
+        if vert == "top":
+            y = vf.origin.y + vf.size.height - (margin - SLIDE_PX - PAD_TOP) - self._win_h
+        else:
+            y = vf.origin.y + margin - PAD_BOTTOM
         self._panel.setFrame_display_(
             AppKit.NSMakeRect(x, y, self._max_w, self._win_h), False)
 
@@ -352,6 +385,10 @@ class DarwinOverlay:
                     st["held_since"] = now if value else None
                 elif kind == "error":
                     st["error"] = value
+                elif kind in ("position", "margin"):
+                    st[kind] = value
+                    if st["shown"]:
+                        self._position_window()
                 elif kind == "style":
                     fam, sz = value
                     try:
@@ -542,7 +579,8 @@ class DarwinOverlay:
         if alpha <= 0.01:
             return
         bg, fg, dim = st["col"]["bg"], st["col"]["fg"], st["col"]["dim"]
-        cy = py + ph - H / 2
+        top_anchor = self._anchor()[0] == "top"
+        cy = py + H / 2 if top_anchor else py + ph - H / 2
         if state in WAVE_STATES:
             rp = self._ring.v
             # Ring aus kreisenden Punkten (wie Windows): mittig in der
@@ -592,8 +630,10 @@ class DarwinOverlay:
                 lines = wrap_text(st["text"], zone, self._measure)
                 maxn = max(1, int((ph - 2 * EXPAND_VPAD) / st["line_h"]))
                 col = mix(bg, fg, 0.94 * alpha)
-                for k, ln in enumerate(reversed(lines[-maxn:])):
-                    self._draw_text(x0, cy - k * st["line_h"], ln, col)
+                shown = lines[-maxn:] if top_anchor else list(reversed(lines[-maxn:]))
+                for k, ln in enumerate(shown):
+                    yy = cy + k * st["line_h"] if top_anchor else cy - k * st["line_h"]
+                    self._draw_text(x0, yy, ln, col)
             elif st["text"]:
                 shown = fit_text_tail(st["text"], zone, self._measure)
                 self._draw_text(x0, cy, shown, mix(bg, fg, 0.94 * alpha))
@@ -653,18 +693,29 @@ class DarwinOverlay:
             return
         now = getattr(self, "_now", time.perf_counter())
         w = self._width.v
-        px = (self._max_w - w) / 2
+        vert, horiz = self._anchor()
+        if horiz == "left":
+            px = float(SIDE_PAD)
+        elif horiz == "right":
+            px = self._max_w - SIDE_PAD - w
+        else:
+            px = (self._max_w - w) / 2
         slide_off = SLIDE_PX * clamp(self._slide.v, -0.25, 1.1)
-        pill_bottom = (self._win_h - PAD_BOTTOM) + slide_off
         ph = float(H)
         if self._expand.v > 0.001 and st["text"]:
             zone = max(20.0, w - WAVE_LEFT - PAD_R)
             nlines = min(len(wrap_text(st["text"], zone, self._measure)),
                          EXPAND_MAX_LINES)
             full_h = max(float(H), 2 * EXPAND_VPAD + max(1, nlines) * st["line_h"])
-            full_h = min(full_h, float(self._win_h - PAD_BOTTOM - 2))
+            full_h = min(full_h, float(self._win_h - PAD_BOTTOM - PAD_TOP - SLIDE_PX - 2))
             ph = H + (full_h - H) * self._expand.v
-        py = pill_bottom - ph
+        if vert == "top":
+            py = SLIDE_PX + PAD_TOP - slide_off
+            pill_bottom = py + ph
+        else:
+            pill_bottom = (self._win_h - PAD_BOTTOM) + slide_off
+            py = pill_bottom - ph
+        anchor_y = py if vert == "top" else pill_bottom
         # Materialisieren: die Pille waechst beim Einblenden von 86 % auf
         # 100 % um ihre Unterkante (Origin = wo sie herkommt), gekoppelt an
         # die Praesenz-Feder. CoreGraphics zeichnet geglaettet, deshalb nur
@@ -676,9 +727,9 @@ class DarwinOverlay:
         AppKit.NSGraphicsContext.saveGraphicsState()
         if scale < 0.999:
             tf = AppKit.NSAffineTransform.transform()
-            tf.translateXBy_yBy_(self._max_w / 2, pill_bottom)
+            tf.translateXBy_yBy_(px + w / 2, anchor_y)
             tf.scaleBy_(scale)
-            tf.translateXBy_yBy_(-self._max_w / 2, -pill_bottom)
+            tf.translateXBy_yBy_(-(px + w / 2), -anchor_y)
             tf.concat()
         self._rounded_pill(px, py, w, ph)
 

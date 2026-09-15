@@ -46,7 +46,8 @@ from .overlay_model import (
     MATERIALIZE_FROM, MAX_TEXT_PX,
     MIN_VISIBLE_S, MORPH_S, N_BARS, ORB_GROW_S, ORB_LISTEN_SIZE,
     ORB_LISTENING, ORB_ONLY_W, ORB_PRESET, ORB_PROCESSING, ORB_SIZE, PAD_BOTTOM, PAD_R,
-    PAD_TOP, PILL_ALPHA, REDUCED_FADE_S, RING_BOUNCE, SLIDE_PX, SPRING_ALPHA, SPRING_LEAN,
+    PAD_TOP, PILL_ALPHA, POSITIONS, REDUCED_FADE_S, RING_BOUNCE, SIDE_PAD, SLIDE_PX,
+    SPRING_ALPHA, SPRING_LEAN,
     SPRING_ARC, SPRING_EXPAND, SPRING_HIDE, SPRING_RING, SPRING_SHOW,
     SPRING_WIDTH, TEXT_STATES, THEMES, WAVE_DT, WAVE_LEFT, WAVE_STATES,
     Spring, Tween, check_path, clamp, ease_out, fit_text_tail, orb_dots,
@@ -500,6 +501,8 @@ class _Pill:
             "reduced": False, "showing": None, "hover": False,
             "held_since": None,   # Hotkey gehalten seit (Bubble nach HOLD_EXPAND_S)
             "error": "",          # Fehlergrund fuer den error-Zustand
+            "position": POSITIONS[0],  # unten-Mitte (Einstellung overlay_position)
+            "margin": float(BOTTOM_MARGIN),  # Abstand zum Arbeitsflaechen-Rand (logisch)
         }
         self.width = Spring(self.content_width("recording"), *SPRING_WIDTH)
         self.expand = Spring(0.0, *SPRING_EXPAND)
@@ -563,6 +566,13 @@ class _Pill:
         if state == "error":
             return 14 + 7 + 8 + m(self.error_text()) + 14
         return 100
+
+    def anchor(self) -> tuple[str, str]:
+        """("bottom"|"top", "center"|"left"|"right") aus der Position."""
+        pos = self.st.get("position") or POSITIONS[0]
+        vert, _, horiz = pos.partition("-")
+        return ("top" if vert == "top" else "bottom",
+                horiz if horiz in ("left", "right") else "center")
 
     def error_text(self) -> str:
         reason = (self.st.get("error") or "").strip()
@@ -707,17 +717,28 @@ class _Pill:
         k = self.k
         W, Hc = self.max_w, self.win_h
         w = self.width.v
-        px = (W - w) / 2
+        vert, horiz = self.anchor()
+        if horiz == "left":
+            px = float(SIDE_PAD)
+        elif horiz == "right":
+            px = W - SIDE_PAD - w
+        else:
+            px = (W - w) / 2
         slide_off = SLIDE_PX * clamp(self.slide.v, -0.25, 1.1)
-        pill_bottom = (Hc - PAD_BOTTOM) + slide_off
         ph = float(H)
         if self.expand.v > 0.001 and st["text"]:
             zone = max(20.0, w - WAVE_LEFT - PAD_R - self.badge_w())
             nlines = min(len(self.wrap(st["text"], zone)), EXPAND_MAX_LINES)
             full_h = max(float(H), 2 * EXPAND_VPAD + max(1, nlines) * self.fonts.line_h)
-            full_h = min(full_h, float(Hc - PAD_BOTTOM - 2))
+            full_h = min(full_h, float(Hc - PAD_BOTTOM - PAD_TOP - SLIDE_PX - 2))
             ph = H + (full_h - H) * self.expand.v
-        py = pill_bottom - ph
+        if vert == "top":
+            # oben verankert: Pille kommt von oben herein, Bubble waechst nach unten
+            py = SLIDE_PX + PAD_TOP - slide_off
+            pill_bottom = py + ph
+        else:
+            pill_bottom = (Hc - PAD_BOTTOM) + slide_off
+            py = pill_bottom - ph
         # Nur die Pillenregion (+ Schatten) in Supersampling zeichnen, dann
         # ins 1x-Fensterbild setzen - das Fenster ist fuer die ausgeklappte
         # Bubble dimensioniert, die eingeklappte Pille braucht ein Fuenftel.
@@ -749,7 +770,8 @@ class _Pill:
         if mat < 0.999:
             nw, nh = max(1, int(round(small.width * mat))), max(1, int(round(small.height * mat)))
             small = small.resize((nw, nh), Image.LANCZOS)
-            cxp, pbp = (px + w / 2) * s, pill_bottom * s
+            cxp = (px + w / 2) * s
+            pbp = (py if vert == "top" else pill_bottom) * s  # Origin = Ankerkante
             ox = cxp - (cxp - ox) * mat
             oy = pbp - (pbp - oy) * mat
         return small, int(round(ox)), int(round(oy))
@@ -779,7 +801,8 @@ class _Pill:
         col = st["col"]
         fg, dim = _rgb(col["fg"]), _rgb(col["dim"])
         A = lambda a: int(round(255 * clamp(a * alpha)))  # noqa: E731
-        cy = py + ph - H / 2
+        top_anchor = self.anchor()[0] == "top"
+        cy = py + H / 2 if top_anchor else py + ph - H / 2
 
         def dot(x, y, r, color, a):
             d.ellipse([(x - r) * k, (y - r) * k, (x + r) * k, (y + r) * k], fill=color + (A(a),))
@@ -832,11 +855,14 @@ class _Pill:
             if st["text"] and ph > H + 1.0:
                 lines = self.wrap(st["text"], zone)
                 maxn = max(1, int((ph - 2 * EXPAND_VPAD) / f.line_h))
-                shown = list(reversed(lines[-maxn:]))
+                # unten verankert: neueste Zeile unten neben dem Ring, aeltere
+                # darueber; oben verankert: Zeilen laufen nach unten weiter
+                shown = lines[-maxn:] if top_anchor else list(reversed(lines[-maxn:]))
                 ex = self.expand.v
                 for i, ln in enumerate(shown):
                     la = 1.0 if i == 0 else smooth((ex - i * 0.06) / 0.5)
-                    d.text((x0 * k, (cy - i * f.line_h) * k), ln, font=f.font,
+                    yy = cy + i * f.line_h if top_anchor else cy - i * f.line_h
+                    d.text((x0 * k, yy * k), ln, font=f.font,
                            fill=fg + (A(0.94 * la),), anchor="lm")
             elif st["text"]:
                 d.text((x0 * k, cy * k), fit_text_tail(st["text"], zone, f.measure),
@@ -932,7 +958,7 @@ class Overlay:
 
     def _replay_settings(self):
         last = self._last
-        for key in ("glass", "source", "style", "theme", "reduced"):
+        for key in ("glass", "source", "style", "theme", "reduced", "position", "margin"):
             if key in last:
                 self._queue.put((key, last[key]))
         if last.get("state") not in (None, "hidden"):
@@ -987,6 +1013,21 @@ class Overlay:
         """Kurzer Fehlergrund fuer den error-Zustand ("Kein Mikrofon")."""
         self._queue.put(("error", (reason or "").strip()))
 
+    def set_position(self, position: str):
+        """Position auf der Arbeitsflaeche, z.B. "bottom-center", "top-left"."""
+        pos = position if position in POSITIONS else POSITIONS[0]
+        self._last["position"] = pos
+        self._queue.put(("position", pos))
+
+    def set_margin(self, margin_px: float):
+        """Abstand der Pille zum Arbeitsflaechen-Rand in logischen Pixeln."""
+        try:
+            m = max(0.0, min(400.0, float(margin_px)))
+        except (TypeError, ValueError):
+            m = float(BOTTOM_MARGIN)
+        self._last["margin"] = m
+        self._queue.put(("margin", m))
+
     # ---- Render-Thread ---------------------------------------------------------
 
     def _run(self):
@@ -1010,8 +1051,19 @@ class Overlay:
             left, top, right, bottom, scale = _active_monitor_work_area()
             pill.set_scale(scale)
             win.resize(int(round(pill.max_w * scale)), int(round(pill.win_h * scale)))
-            x = int(round((left + right) / 2 - win.w / 2))
-            y = int(round(bottom - (BOTTOM_MARGIN - PAD_BOTTOM) * scale - win.h))
+            vert, horiz = pill.anchor()
+            margin = float(pill.st["margin"])
+            if horiz == "left":
+                x = left + (margin - SIDE_PAD) * scale
+            elif horiz == "right":
+                x = right - (margin - SIDE_PAD) * scale - win.w
+            else:
+                x = (left + right) / 2 - win.w / 2
+            if vert == "top":
+                y = top + (margin - SLIDE_PX - PAD_TOP) * scale
+            else:
+                y = bottom - (margin - PAD_BOTTOM) * scale - win.h
+            x, y = int(round(x)), int(round(y))
             if (x, y) != (last["x"], last["y"]):
                 win.move(x, y)
                 last["x"], last["y"] = x, y
@@ -1056,6 +1108,11 @@ class Overlay:
                                 pill.st["held_since"] = now if value else None
                             elif kind == "error":
                                 pill.st["error"] = value
+                            elif kind in ("position", "margin"):
+                                pill.st[kind] = value
+                                if pill.st["shown"]:
+                                    last["x"] = None  # live umziehen
+                                    position_window()
                             elif kind == "style":
                                 try:
                                     pill.set_font(*value)

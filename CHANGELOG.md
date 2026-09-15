@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Added
+- **Position der Pille einstellbar**: unten oder oben, jeweils links, Mitte
+  oder rechts, plus "Abstand zum Rand" in Pixeln (Standard 44). Beides im
+  Dashboard unter "Pille (Overlay)", wirkt sofort, auch waehrend die Pille
+  sichtbar ist. Oben verankert kommt die Pille von oben herein und die
+  Bubble waechst nach unten. Windows und macOS.
+
 ### Changed
 - **Glas-Optik eindeutig**: "aus" ist jetzt deckend (100 % oben, 97 % unten,
   vorher 94/90), "an" deutlich glasiger (68/52 statt 72/60). Der Schalter

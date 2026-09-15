@@ -15,7 +15,7 @@ EDITABLE_SETTINGS = [
     "max_duration_s",
     "voice_commands_enabled", "voice_commands", "live_preview", "glass_pill",
     "overlay_font", "overlay_font_size", "overlay_theme", "smart_spacing",
-    "type_max_chars",
+    "type_max_chars", "overlay_position", "overlay_margin",
 ]
 
 
@@ -27,11 +27,11 @@ _BOOL_SETTINGS = {"ai_cleanup", "play_sounds", "duck_audio", "swallow_mouse_hotk
                   "pause_in_fullscreen", "voice_commands_enabled", "live_preview",
                   "glass_pill", "smart_spacing"}
 _INT_SETTINGS = {"beam_size", "cleanup_min_words", "tail_ms", "overlay_font_size",
-                 "max_duration_s", "type_max_chars"}
+                 "max_duration_s", "type_max_chars", "overlay_margin"}
 _FLOAT_SETTINGS = {"min_duration_s", "paste_restore_delay", "cleanup_timeout_s",
                    "duck_volume"}
 _STR_SETTINGS = {"hotkey", "hotkey2", "toggle_hotkey", "ptt_mode", "language",
-                 "ollama_model", "overlay_font", "overlay_theme"}
+                 "ollama_model", "overlay_font", "overlay_theme", "overlay_position"}
 
 
 def _coerce_setting(key: str, value):
@@ -122,6 +122,16 @@ def _apply_runtime_changes(main_app, settings, changed: set):
             main_app.overlay.set_theme(settings.get("overlay_theme"))
         except Exception:
             log.exception("Theme-Umschalten fehlgeschlagen")
+    if "overlay_position" in changed:
+        try:
+            main_app.overlay.set_position(settings.get("overlay_position"))
+        except Exception:
+            log.exception("Positions-Umschalten fehlgeschlagen")
+    if "overlay_margin" in changed:
+        try:
+            main_app.overlay.set_margin(settings.get("overlay_margin"))
+        except Exception:
+            log.exception("Abstands-Umschalten fehlgeschlagen")
     if "duck_volume" in changed:
         try:
             main_app.ducker.duck_volume = max(0.0, min(1.0, float(settings.get("duck_volume") or 0.0)))
@@ -255,6 +265,15 @@ def create_app(settings, db, main_app=None):
             data["voice_commands"] = _sanitize_voice_commands(data["voice_commands"])
         if "overlay_theme" in data and data["overlay_theme"] not in ("dark", "light"):
             data["overlay_theme"] = "dark"
+        if "overlay_position" in data:
+            from ..overlay_model import POSITIONS
+            if data["overlay_position"] not in POSITIONS:
+                data["overlay_position"] = POSITIONS[0]
+        if "overlay_margin" in data:
+            try:
+                data["overlay_margin"] = max(0, min(400, int(float(data["overlay_margin"]))))
+            except (TypeError, ValueError):
+                data.pop("overlay_margin")
         ignored = []
         to_apply = {}
         for k, v in data.items():

@@ -146,6 +146,8 @@ class LocalFlowApp:
         self.overlay.set_style(self.settings.get("overlay_font"),
                                self.settings.get("overlay_font_size"))
         self.overlay.set_theme(self.settings.get("overlay_theme"))
+        self.overlay.set_position(self.settings.get("overlay_position"))
+        self.overlay.set_margin(self.settings.get("overlay_margin"))
         try:
             reduced = bool(self.backends.integration.prefers_reduced_motion())
         except Exception:  # noqa: BLE001 - Kosmetik, nie fatal

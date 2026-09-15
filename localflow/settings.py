@@ -90,6 +90,10 @@ DEFAULTS = {
     # "dark" = schwarze Pille (Standard) | "light" = mittelgraue Pille,
     # weisser Text (auf hellen Desktops/Apps angenehmer).
     "overlay_theme": "dark",
+    # Position der Pille: bottom-center (Standard), bottom-left, bottom-right,
+    # top-center, top-left, top-right; Abstand zum Arbeitsflaechen-Rand in px.
+    "overlay_position": "bottom-center",
+    "overlay_margin": 44,
     # Smart Spacing: klebt das Diktat sonst direkt an bestehenden Text
     # (Satzende, Wortmitte), wird automatisch ein Leerzeichen vorangestellt.
     # In Terminals automatisch deaktiviert (Sonde nutzt Strg+C).

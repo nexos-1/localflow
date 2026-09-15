@@ -45,7 +45,11 @@ MIN_VISIBLE_S = 0.30        # Anti-Blitz: so lange bleibt die Pill mindestens
 PAD_TOP = 6                 # Canvas-Luft oben (Platz fuer Slide-Overshoot)
 PAD_BOTTOM = 6              # Canvas-Luft unter der Pille (Verankerung)
 SLIDE_PX = 18
-BOTTOM_MARGIN = 44          # Abstand Pill-Unterkante zum Arbeitsflaechen-Rand
+BOTTOM_MARGIN = 44          # Standard-Abstand der Pille zum Arbeitsflaechen-Rand
+SIDE_PAD = 24               # Innenabstand der Pille im Fenster bei links/rechts
+# Position der Pille auf der Arbeitsflaeche (Einstellung overlay_position)
+POSITIONS = ("bottom-center", "bottom-left", "bottom-right",
+             "top-center", "top-left", "top-right")
 EXPAND_S = 0.18             # Hover-Ausklappen: Dauer der Wachstums-Animation
 EXPAND_MAX_LINES = 8        # so viele Zeilen zeigt die ausgeklappte Pille max.
 EXPAND_VPAD = 8             # vertikaler Innenabstand im ausgeklappten Zustand

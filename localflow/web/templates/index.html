@@ -330,6 +330,21 @@
         </select></div>
       </div>
       <div class="srow">
+        <div class="lbl"><label for="s-overlay_position">Position</label><small>Wo die Pille auf dem Monitor mit dem aktiven Fenster erscheint.</small></div>
+        <div class="ctl"><select id="s-overlay_position">
+          <option value="bottom-center">Unten Mitte (Standard)</option>
+          <option value="bottom-left">Unten links</option>
+          <option value="bottom-right">Unten rechts</option>
+          <option value="top-center">Oben Mitte</option>
+          <option value="top-left">Oben links</option>
+          <option value="top-right">Oben rechts</option>
+        </select></div>
+      </div>
+      <div class="srow">
+        <div class="lbl" id="margin-lbl">Abstand zum Rand<small>Pixel zwischen Pille und Taskleiste bzw. Bildschirmrand.</small></div>
+        <div class="ctl" style="display:flex;gap:8px;align-items:center;justify-content:flex-end"><input type="number" id="s-overlay_margin" min="0" max="400" step="4" aria-labelledby="margin-lbl"><span class="dim">px</span></div>
+      </div>
+      <div class="srow">
         <div class="lbl"><label for="s-overlay_font">Schriftart</label></div>
         <div class="ctl"><select id="s-overlay_font"></select></div>
       </div>
@@ -593,6 +608,12 @@ function renderDesign(s) {
     zsel.onchange = () => liveSave({overlay_font_size: parseInt(zsel.value, 10)});
   }
   if (g) { g.checked = !!s.glass_pill; g.onchange = () => liveSave({glass_pill: g.checked}); }
+  const pos = $("#s-overlay_position"), mar = $("#s-overlay_margin");
+  if (pos) { pos.value = s.overlay_position || "bottom-center"; pos.onchange = () => liveSave({overlay_position: pos.value}); }
+  if (mar) {
+    mar.value = String(s.overlay_margin ?? 44);
+    mar.onchange = () => liveSave({overlay_margin: Math.max(0, Math.min(400, parseInt(mar.value, 10) || 0))});
+  }
 }
 
 function syncTypeRow() {
