@@ -64,9 +64,10 @@ def main():
     o.set_glass(False)
     o.set_state("recording")
     o.set_text("watchdog regressionstest text")
-    wait_for(lambda: (window_alpha(hwnd1) or 0) > 200, 5,
-             "Pill sichtbar (alpha > 200)")
-    print(f"Gen 1: hwnd={hwnd1:#x} alpha={window_alpha(hwnd1)}")
+    # Layered Window (UpdateLayeredWindow): GetLayeredWindowAttributes liefert
+    # dort nichts, die Sichtbarkeit meldet der Render-Thread ueber _hb.
+    wait_for(lambda: o._hb.get("alpha", 0) > 0.8, 5, "Pill sichtbar (alpha > 0.8)")
+    print(f"Gen 1: hwnd={hwnd1:#x} alpha={o._hb['alpha']:.2f} vis={o._hb['vis']}")
 
     # 2. Fenster von aussen toeten - Overlay-Thread stirbt, App merkt nichts
     user32.PostMessageW(hwnd1, WM_CLOSE, 0, 0)
@@ -78,9 +79,9 @@ def main():
         15, "Watchdog-Neustart (neues Fenster)")
     assert hwnd2 != hwnd1
     # ... und der Aufnahme-Zustand kommt per Replay automatisch zurueck
-    wait_for(lambda: (window_alpha(hwnd2) or 0) > 200, 5,
+    wait_for(lambda: o._hb.get("alpha", 0) > 0.8, 5,
              "Pill nach Selbstheilung wieder sichtbar")
-    print(f"Gen 2: hwnd={hwnd2:#x} alpha={window_alpha(hwnd2)} (Replay ok)")
+    print(f"Gen 2: hwnd={hwnd2:#x} alpha={o._hb['alpha']:.2f} vis={o._hb['vis']} (Replay ok)")
 
     # 4. Topmost-Degradierung heilt sich selbst (Feldbefund 2026-07-14:
     #    Windows warf die Pill aus dem Topmost-Band, sie renderte unsichtbar
@@ -130,7 +131,7 @@ def main():
 
     # 6. Normales Verhalten der neuen Generation: hidden blendet aus
     o.set_state("hidden")
-    wait_for(lambda: window_alpha(hwnd2) == 0, 5,
+    wait_for(lambda: o._hb.get("alpha", 1) == 0.0, 5,
              "Pill blendet nach hidden aus")
 
     print("\nOVERLAY WATCHDOG TEST PASSED")
