@@ -15,6 +15,8 @@
   Text nach links.
 
 
+## 0.4.0 - 2026-09-15
+
 ### Added
 - **Pille als Layered Window mit Per-Pixel-Alpha** (Windows): overlay.py
   zeichnet nicht mehr mit Tk, sondern rendert jeden Frame mit PIL in 3-fachem
