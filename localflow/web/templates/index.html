@@ -316,7 +316,7 @@
           <label for="s-autostart">Mit Windows starten<small>LocalFlow startet beim Anmelden im Hintergrund.</small></label>
           <input type="checkbox" class="sw" role="switch" id="s-autostart">
         </div>
-        <div class="actions"><button class="btn" id="s-save">Einstellungen speichern</button><span class="dim" style="font-size:12px">Design-Änderungen unten gelten sofort.</span></div>
+        <div class="actions"><button class="btn" id="s-save">Hotkeys und Befehle speichern</button><span class="dim" style="font-size:12px">Schalter und Auswahlen gelten sofort. Hotkeys, Sprachbefehle und die Tipp-Länge brauchen Speichern.</span></div>
       </div>
     </div>
 
@@ -689,6 +689,28 @@ $("#s-import").onclick = async () => {
   toast(r.ok ? `Importiert: ${d.dictionary} Wörterbuch, ${d.history} History` : d.error);
   loadDict(); loadHistory(); loadStats();
 };
+
+// Speichern beim Umschalten: Schalter und Auswahlen gelten sofort (Apple:
+// Feedback in der Oberflaeche, kein Formular). Hotkeys, Sprachbefehle und
+// die Tipp-Laenge sind Texteingaben und gehen weiter ueber "Speichern".
+const LIVE_KEYS = ["swallow_mouse_hotkey", "pause_in_fullscreen", "voice_commands_enabled",
+  "language", "audio_device", "ollama_model", "ai_cleanup", "play_sounds", "duck_audio",
+  "live_preview", "smart_spacing", "autostart", "ptt_mode"];
+for (const key of LIVE_KEYS) {
+  const el = $("#s-" + key);
+  if (!el) continue;
+  el.addEventListener("change", async () => {
+    let val = el.type === "checkbox" ? el.checked : el.value;
+    if (key === "audio_device") val = val === "" ? null : parseInt(val, 10);
+    const r = await liveSave({[key]: val});
+    if (r && r.ok) toast("Gespeichert");
+  });
+}
+$("#s-type_enabled").addEventListener("change", async () => {
+  const on = $("#s-type_enabled").checked;
+  const r = await liveSave({type_max_chars: on ? Math.max(1, parseInt($("#s-type_max_chars").value, 10) || 200) : 0});
+  if (r && r.ok) toast("Gespeichert");
+});
 
 const safe = p => p.catch(() => {});  // Offline-Fall macht schon das Banner
 safe(loadStats()); safe(loadHistory(false)); safe(loadDict()); safe(loadSettings());

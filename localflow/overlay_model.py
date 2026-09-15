@@ -67,6 +67,10 @@ RING_BOUNCE = 0.55          # Daempfung beim Lock per Doppeltipp (~12 % Uebersch
 SPRING_ARC = (0.30, 1.0)    # Ringbogen im Tipp-Fenster (Antizipation)
 ARC_TAP = 0.25              # so weit (0..1 Umfang) waechst der Bogen nach Tipp 1
 REDUCED_FADE_S = 0.20       # Reduced Motion: reiner Crossfade, kein Slide
+MATERIALIZE_FROM = 0.86     # Einblenden: Pille waechst von 86 % um ihre Unterkante
+LEAN_SCALE = 0.97           # Tipp-Fenster: Pille lehnt sich minimal zurueck
+SPRING_LEAN = (0.20, 1.0)   # Feder fuers Zuruecklehnen
+HOLD_EXPAND_S = 1.5         # Bubble klappt auch auf, wenn der Hotkey so lange gehalten wird
 
 # armed = kurzer Tipp, Tipp-Fenster laeuft (Aufnahme geht weiter, Ringbogen
 # deutet das moegliche Freisprechen an); done = eingefuegt (Haken).

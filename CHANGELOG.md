@@ -1,6 +1,19 @@
 # Changelog
 
-## 0.4.0 - 2026-09-15
+## Unreleased
+
+### Added
+- **Motion-Brief, letzte Punkte**: Die Pille materialisiert beim Einblenden
+  (waechst von 86 % um ihre Unterkante, jetzt auch auf Windows), lehnt sich
+  im Tipp-Fenster minimal zurueck, und die Bubble mit dem Live-Text klappt
+  auch auf, wenn der Hotkey laenger als 1,5 s gehalten wird (nicht nur per
+  Maus). Die Fehler-Pille nennt den Grund ("Fehler · Kein Mikrofon",
+  "Modelle nicht geladen", "Ollama nicht erreichbar"). Im Dashboard gelten
+  Schalter und Auswahlen sofort beim Umschalten; nur Hotkeys, Sprachbefehle
+  und die Tipp-Laenge brauchen noch "Speichern". Die macOS-Pille zieht nach:
+  Ring aus kreisenden Punkten statt Punkt und Waveform, Ring gleitet mit dem
+  Text nach links.
+
 
 ### Added
 - **Pille als Layered Window mit Per-Pixel-Alpha** (Windows): overlay.py

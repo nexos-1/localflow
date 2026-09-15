@@ -30,11 +30,13 @@ import queue
 import time
 
 from ...overlay_model import (
-    ARC_TAP, BAR_SPAN, BAR_STEP, BAR_W, BOTTOM_MARGIN, CHECK_S,
-    EXPAND_MAX_LINES, EXPAND_VPAD, FONT_SIZE, GLASS_ALPHA, H, MAX_TEXT_PX,
-    MIN_VISIBLE_S, MORPH_S, N_BARS, ORB_GROW_S, ORB_PROCESSING, ORB_SIZE,
+    ARC_TAP, BOTTOM_MARGIN, CHECK_S,
+    EXPAND_MAX_LINES, EXPAND_VPAD, FONT_SIZE, GLASS_ALPHA, H, HOLD_EXPAND_S, LEAN_SCALE,
+    MATERIALIZE_FROM, MAX_TEXT_PX,
+    MIN_VISIBLE_S, MORPH_S, N_BARS, ORB_GROW_S, ORB_LISTEN_SIZE, ORB_LISTENING,
+    ORB_ONLY_W, ORB_PRESET, ORB_PROCESSING, ORB_SIZE,
     PAD_BOTTOM, PAD_R, PAD_TOP,
-    REDUCED_FADE_S, RING_BOUNCE, SLIDE_PX, SOLID_ALPHA, SPRING_ALPHA,
+    REDUCED_FADE_S, RING_BOUNCE, SLIDE_PX, SOLID_ALPHA, SPRING_ALPHA, SPRING_LEAN,
     SPRING_ARC, SPRING_EXPAND, SPRING_HIDE, SPRING_RING, SPRING_SHOW,
     SPRING_WIDTH, TEXT_STATES, THEMES, WAVE_DT, WAVE_LEFT, WAVE_STATES,
     Spring, Tween, check_path, clamp, ease_out, fit_text_tail, mix, orb_dots,
@@ -76,6 +78,12 @@ class NullOverlay:
         pass
 
     def set_reduced_motion(self, enabled: bool):
+        pass
+
+    def set_held(self, held: bool):
+        pass
+
+    def set_error(self, reason: str):
         pass
 
 
@@ -129,6 +137,16 @@ class DarwinOverlay:
     def set_reduced_motion(self, enabled: bool):
         self._queue.put(("reduced", bool(enabled)))
 
+    def set_held(self, held: bool):
+        self._queue.put(("held", bool(held)))
+
+    def set_error(self, reason: str):
+        self._queue.put(("error", (reason or "").strip()))
+
+    def _error_text(self) -> str:
+        reason = (self._st or {}).get("error") or ""
+        return f"Fehler · {reason}" if reason else "Fehler"
+
     # --- AppKit (nur Main-Thread ab hier) -------------------------------
 
     def _measure(self, s: str) -> float:
@@ -142,7 +160,7 @@ class DarwinOverlay:
             if st["text"]:
                 tw = min(self._measure(st["text"]) + 6, MAX_TEXT_PX)
                 return WAVE_LEFT + tw + PAD_R
-            return WAVE_LEFT + BAR_SPAN + PAD_R
+            return ORB_ONLY_W
         if state in ("processing", "done"):
             return 64
         if state == "loading":
@@ -150,7 +168,7 @@ class DarwinOverlay:
         if state == "clipboard":
             return 14 + 14 + 8 + self._measure("In der Zwischenablage · Cmd+V") + 14
         if state == "error":
-            return 14 + 7 + 8 + self._measure("Fehler") + 14
+            return 14 + 7 + 8 + self._measure(self._error_text()) + 14
         return 100
 
     def _line_h(self) -> float:
@@ -186,6 +204,8 @@ class DarwinOverlay:
                 "glass": False, "col": THEMES["dark"],
                 "reduced": False,    # Reduced Motion: Crossfade statt Slide
                 "showing": None,     # Praesenz-Richtung (Feder-Tuning)
+                "held_since": None,  # Hotkey gehalten seit (Bubble nach HOLD_EXPAND_S)
+                "error": "",         # Fehlergrund
             }
             self._st = st
             st["line_h"] = self._line_h()
@@ -208,6 +228,7 @@ class DarwinOverlay:
             self._check = Tween(0.0, ease_out)
             self._slide = Spring(1.0, *SPRING_SHOW)
             self._alpha = Spring(0.0, *SPRING_ALPHA)
+            self._lean = Spring(1.0, *SPRING_LEAN)
             self._wave = collections.deque([0.0] * N_BARS, maxlen=N_BARS)
             self._last_t = time.perf_counter()
 
@@ -278,6 +299,7 @@ class DarwinOverlay:
             self._check.snap(1.0 if new == "done" else 0.0)
             self._slide.snap(0.0 if st["reduced"] else 1.0)
             self._expand.snap(0.0)
+            self._lean.snap(1.0)
             st["showing"] = None
             self._wave.extend([0.0] * N_BARS)
             st["smooth"] = 0.0
@@ -294,6 +316,7 @@ class DarwinOverlay:
             self._ring.tune(SPRING_RING[0], RING_BOUNCE if bounce else SPRING_RING[1])
             self._ring.to(1.0 if new == "locked" else 0.0)
             self._arc.to(ARC_TAP if new == "armed" else 0.0)
+            self._lean.to(LEAN_SCALE if new == "armed" and not st["reduced"] else 1.0)
         else:
             st["prev"] = old
             st["state_t0"] = now
@@ -301,6 +324,7 @@ class DarwinOverlay:
             self._fade.to(1.0, MORPH_S, now)
             self._ring.snap(1.0 if new == "locked" else 0.0)
             self._arc.snap(0.0)
+            self._lean.to(1.0)
             if new == "done":
                 self._check.snap(0.0)
                 self._check.to(1.0, CHECK_S, now + MORPH_S * 0.5)
@@ -324,6 +348,10 @@ class DarwinOverlay:
                 elif kind == "reduced":
                     st["reduced"] = bool(value)
                     st["showing"] = None
+                elif kind == "held":
+                    st["held_since"] = now if value else None
+                elif kind == "error":
+                    st["error"] = value
                 elif kind == "style":
                     fam, sz = value
                     try:
@@ -388,7 +416,12 @@ class DarwinOverlay:
                 # Hover: globale Mausposition gegen das Pill-Rechteck des
                 # letzten Frames (Screen-Koordinaten, y nach oben).
                 hovering = False
-                if st["vis"] in WAVE_STATES and st["text"] and st["pill_rect"]:
+                held_long = (st["held_since"] is not None
+                             and (now - st["held_since"]) >= HOLD_EXPAND_S)
+                if (held_long and st["vis"] in WAVE_STATES and st["text"]
+                        and len(wrap_text(st["text"], MAX_TEXT_PX, self._measure)) > 1):
+                    hovering = True
+                elif st["vis"] in WAVE_STATES and st["text"] and st["pill_rect"]:
                     try:
                         AppKit = self._AppKit
                         loc = AppKit.NSEvent.mouseLocation()
@@ -414,6 +447,7 @@ class DarwinOverlay:
                 self._width.update(dt)
                 self._ring.update(dt)
                 self._arc.update(dt)
+                self._lean.update(dt)
                 self._check.update(now)
                 if self._fade.update(now) >= 1.0:
                     st["prev"] = None
@@ -511,28 +545,36 @@ class DarwinOverlay:
         cy = py + ph - H / 2
         if state in WAVE_STATES:
             rp = self._ring.v
-            pulse = 1.0 if state == "armed" else \
-                1 + 0.10 * math.sin((now - st["shown_at"]) * 4.5)
-            # rp > 1 = Ueberschwingen der Lock-Feder: Ring poppt kurz groesser
-            r = 3.2 * pulse * (1 + 0.22 * math.sin(math.pi * clamp(rp))
-                               + 0.9 * max(0.0, rp - 1.0))
-            cx = px + 18
-            if rp < 0.99:
-                self._fill_oval(cx - r, cy - r, 2 * r, 2 * r,
-                                mix(bg, fg, (1 - rp) * alpha))
+            # Ring aus kreisenden Punkten (wie Windows): mittig in der
+            # schmalen Pille, gleitet mit wachsender Breite nach links;
+            # Punkte atmen mit dem Pegel, im Tipp-Fenster friert der Ring ein.
+            cx_left = px + WAVE_LEFT / 2 - 2
+            cx_mid = px + w / 2
+            cx = cx_left + (cx_mid - cx_left) * clamp((ORB_ONLY_W + 36 - w) / 36)
+            t_orb = 0.6 if st["reduced"] else now
+            if state == "armed":
+                t_orb = st["state_t0"] + 0.6
+            grow = 1.0 + 0.45 * clamp(st["smooth"])
+            ox, oy = cx - ORB_LISTEN_SIZE / 2, cy - ORB_LISTEN_SIZE / 2
+            for x, y, rr, white, a in orb_dots(ORB_LISTENING, t_orb, ORB_LISTEN_SIZE, grow,
+                                               preset=ORB_PRESET):
+                self._fill_oval(ox + x - rr, oy + y - rr, 2 * rr, 2 * rr,
+                                mix(bg, fg, (1 - white) * a * alpha))
             if rp > 0.01:
                 AppKit = self._AppKit
+                r = (ORB_LISTEN_SIZE / 2 + 2.5 + 3.0 * max(0.0, rp - 1.0)
+                     + 1.5 * math.sin(math.pi * clamp(rp)))
                 p = AppKit.NSBezierPath.bezierPathWithOvalInRect_(
                     AppKit.NSMakeRect(cx - r, cy - r, 2 * r, 2 * r))
                 p.setLineWidth_(1.6)
-                self._color(mix(bg, fg, rp * alpha)).setStroke()
+                self._color(mix(bg, fg, clamp(rp) * alpha)).setStroke()
                 p.stroke()
             av = self._arc.v
             if av > 0.01 and rp < 0.5:
                 # Ringbogen (Tipp-Fenster); geflippte View: Winkel laufen
                 # gespiegelt, deshalb von 90 abwaerts
                 AppKit = self._AppKit
-                ra = r + 3.0
+                ra = ORB_LISTEN_SIZE / 2 + 3.0
                 p = AppKit.NSBezierPath.bezierPath()
                 p.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_clockwise_(
                     (cx, cy), ra, -90.0, -90.0 + 360.0 * clamp(av), False)
@@ -541,6 +583,11 @@ class DarwinOverlay:
                 p.stroke()
             zone = max(6.0, w - WAVE_LEFT - PAD_R)
             x0 = px + WAVE_LEFT
+            # Text erst, wenn die Pille (fast) breit genug ist; keine Waveform
+            gate = clamp((w - (WAVE_LEFT + PAD_R + 24)) / 24)
+            if gate <= 0.01:
+                return
+            alpha *= gate
             if st["text"] and ph > H + 1.0:
                 lines = wrap_text(st["text"], zone, self._measure)
                 maxn = max(1, int((ph - 2 * EXPAND_VPAD) / st["line_h"]))
@@ -550,22 +597,6 @@ class DarwinOverlay:
             elif st["text"]:
                 shown = fit_text_tail(st["text"], zone, self._measure)
                 self._draw_text(x0, cy, shown, mix(bg, fg, 0.94 * alpha))
-            else:
-                scale = min(1.0, zone / BAR_SPAN)
-                self._stroke_line(x0, cy, x0 + BAR_SPAN * scale, cy,
-                                  mix(bg, fg, 0.22 * alpha))
-                bw = max(1.0, BAR_W * scale)
-                for i, lvl in enumerate(self._wave):
-                    h = lvl * (H - 14) / 2
-                    if h < 0.5:
-                        continue
-                    off = i * BAR_STEP - st["scroll"] * BAR_STEP
-                    edge = clamp((off + BAR_STEP) / 10.0)
-                    if edge <= 0.0:
-                        continue
-                    x = x0 + off * scale
-                    shade = (0.45 + 0.55 * (i / (N_BARS - 1))) * edge * alpha
-                    self._fill_rect(x, cy - h, bw, 2 * h, mix(bg, fg, shade))
         elif state == "processing":
             # Thinking-Orb "working" (geteilte Geometrie, CoreGraphics glaettet)
             grow = smooth((now - st["state_t0"]) / ORB_GROW_S)
@@ -574,7 +605,8 @@ class DarwinOverlay:
                 grow, t_orb = 1.0, 0.6
             ox = px + w / 2 - ORB_SIZE / 2
             oy = cy - ORB_SIZE / 2
-            for x, y, rr, white, a in orb_dots(ORB_PROCESSING, t_orb, ORB_SIZE, grow):
+            for x, y, rr, white, a in orb_dots(ORB_PROCESSING, t_orb, ORB_SIZE, grow,
+                                               preset=ORB_PRESET):
                 self._fill_oval(ox + x - rr, oy + y - rr, 2 * rr, 2 * rr,
                                 mix(bg, fg, (1 - white) * a * alpha))
         elif state == "done":
@@ -613,7 +645,7 @@ class DarwinOverlay:
                             mix(bg, fg, alpha))
         elif state == "error":
             self._fill_oval(px + 14, cy - 3.5, 7, 7, mix(bg, dim, alpha))
-            self._draw_text(px + 29, cy, "Fehler", mix(bg, fg, alpha))
+            self._draw_text(px + 29, cy, self._error_text(), mix(bg, fg, alpha))
 
     def _draw_frame(self):
         st = self._st
@@ -638,7 +670,9 @@ class DarwinOverlay:
         # die Praesenz-Feder. CoreGraphics zeichnet geglaettet, deshalb nur
         # hier und nicht in der Tk-Variante. Reduced Motion: keine Skalierung.
         AppKit = self._AppKit
-        scale = 1.0 if st["reduced"] else 0.86 + 0.14 * clamp(self._alpha.v)
+        scale = 1.0 if st["reduced"] else \
+            MATERIALIZE_FROM + (1 - MATERIALIZE_FROM) * clamp(self._alpha.v)
+        scale *= self._lean.v
         AppKit.NSGraphicsContext.saveGraphicsState()
         if scale < 0.999:
             tf = AppKit.NSAffineTransform.transform()

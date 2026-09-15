@@ -36,6 +36,21 @@ log = logging.getLogger("localflow")
 _crash_file = None
 
 
+def _error_reason(exc: BaseException) -> str:
+    """Kurzer, lesbarer Grund fuer die Fehler-Pille (max. ~28 Zeichen)."""
+    msg = (str(exc) or exc.__class__.__name__).splitlines()[0].strip()
+    low = msg.lower()
+    if "modelle nicht" in low:
+        return "Modelle nicht geladen"
+    if "cuda" in low or "cublas" in low or "out of memory" in low:
+        return "GPU-Fehler"
+    if "ollama" in low or "11434" in low:
+        return "Ollama nicht erreichbar"
+    if any(w in low for w in ("portaudio", "audio", "device", "mikro", "microphone")):
+        return "Kein Mikrofon"
+    return msg[:28] + ("…" if len(msg) > 28 else "")
+
+
 def setup_crash_log():
     """Native Abstuerze und stille Thread-Exceptions sichtbar machen.
 
@@ -357,6 +372,9 @@ class LocalFlowApp:
             # wieder auf recording geht (Queue ist geordnet: text vor state).
             self.overlay.set_text("")
             self._set_overlay_state("recording" if self.models_ready.is_set() else "loading")
+            # Bubble nach laengerem Halten: nur solange die Taste wirklich
+            # gehalten wird (Controller-Zustand hold), nicht bei Toggle/Lock.
+            self.overlay.set_held(bool(self.controller and self.controller.state == "hold"))
             if self.settings.get("live_preview") and self.models_ready.is_set():
                 session = self._record_session
                 threading.Thread(target=self._run_preview, args=(session,),
@@ -382,6 +400,7 @@ class LocalFlowApp:
             log.debug("recorder.stop im Abbruch fehlgeschlagen", exc_info=True)
         self.ducker.restore()
         self._cancel_watchdog()
+        self.overlay.set_held(False)
         self._set_overlay_state("hidden")
 
     def _arm_max_duration_watchdog(self, session: int):
@@ -436,11 +455,13 @@ class LocalFlowApp:
         """Kurzer Tipp im Modus "both": das Tipp-Fenster laeuft. Die Pille
         deutet mit einem Ringbogen an, dass ein zweiter Tipp jetzt
         Freisprechen bedeutet (Antizipation statt Stillstand)."""
+        self.overlay.set_held(False)
         if self.recorder.is_recording:
             self._set_overlay_state("armed")
 
     def _on_dictate_lock(self):
         """Doppeltipp: Freisprechen aktiv, Aufnahme laeuft weiter."""
+        self.overlay.set_held(False)
         if not self.recorder.is_recording:
             return  # z.B. pausiert oder Start fehlgeschlagen - nicht "locked" zeigen
         if self.settings.get("play_sounds"):
@@ -452,6 +473,7 @@ class LocalFlowApp:
         self._abort_recording()
 
     def _on_dictate_stop(self):
+        self.overlay.set_held(False)
         if not self.recorder.is_recording:
             self._set_overlay_state("hidden")  # ggf. haengende "locked"-Pill aufloesen
             return
@@ -589,10 +611,11 @@ class LocalFlowApp:
                 self._set_overlay_if_current(session, "done")
                 time.sleep(DONE_HOLD_S)
             self._set_overlay_if_current(session, "hidden")
-        except Exception:
+        except Exception as exc:
             log.exception("Verarbeitung fehlgeschlagen")
             if self.settings.get("play_sounds"):
                 self.backends.sounds.play("error")
+            self.overlay.set_error(_error_reason(exc))
             self._set_overlay_if_current(session, "error")
             time.sleep(ERROR_HOLD_S)
             self._set_overlay_if_current(session, "hidden")

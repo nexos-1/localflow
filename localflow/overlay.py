@@ -42,10 +42,11 @@ from PIL import Image, ImageDraw, ImageFont
 
 from .overlay_model import (
     ARC_TAP, BOTTOM_MARGIN, CHECK_S,
-    EXPAND_MAX_LINES, EXPAND_VPAD, FONT_SIZE, H, MAX_TEXT_PX,
+    EXPAND_MAX_LINES, EXPAND_VPAD, FONT_SIZE, H, HOLD_EXPAND_S, LEAN_SCALE,
+    MATERIALIZE_FROM, MAX_TEXT_PX,
     MIN_VISIBLE_S, MORPH_S, N_BARS, ORB_GROW_S, ORB_LISTEN_SIZE,
     ORB_LISTENING, ORB_ONLY_W, ORB_PRESET, ORB_PROCESSING, ORB_SIZE, PAD_BOTTOM, PAD_R,
-    PAD_TOP, PILL_ALPHA, REDUCED_FADE_S, RING_BOUNCE, SLIDE_PX, SPRING_ALPHA,
+    PAD_TOP, PILL_ALPHA, REDUCED_FADE_S, RING_BOUNCE, SLIDE_PX, SPRING_ALPHA, SPRING_LEAN,
     SPRING_ARC, SPRING_EXPAND, SPRING_HIDE, SPRING_RING, SPRING_SHOW,
     SPRING_WIDTH, TEXT_STATES, THEMES, WAVE_DT, WAVE_LEFT, WAVE_STATES,
     Spring, Tween, check_path, clamp, ease_out, fit_text_tail, orb_dots,
@@ -497,6 +498,8 @@ class _Pill:
             "shown_at": 0.0, "state_t0": 0.0, "wave_acc": 0.0, "scroll": 0.0,
             "glass": False, "source": "pc", "col": THEMES["dark"],
             "reduced": False, "showing": None, "hover": False,
+            "held_since": None,   # Hotkey gehalten seit (Bubble nach HOLD_EXPAND_S)
+            "error": "",          # Fehlergrund fuer den error-Zustand
         }
         self.width = Spring(self.content_width("recording"), *SPRING_WIDTH)
         self.expand = Spring(0.0, *SPRING_EXPAND)
@@ -506,6 +509,7 @@ class _Pill:
         self.check = Tween(0.0, ease_out)
         self.slide = Spring(1.0, *SPRING_SHOW)
         self.alpha = Spring(0.0, *SPRING_ALPHA)
+        self.lean = Spring(1.0, *SPRING_LEAN)    # 1.0 normal, LEAN_SCALE im Tipp-Fenster
         self.wave = collections.deque([0.0] * N_BARS, maxlen=N_BARS)
         self._wrap_cache: dict = {}
         self.pill_rect = None  # (px, py, w, ph) logisch, letzter Frame
@@ -557,8 +561,12 @@ class _Pill:
         if state == "clipboard":
             return 14 + 14 + 8 + m("In der Zwischenablage · Strg+V") + 14
         if state == "error":
-            return 14 + 7 + 8 + m("Fehler") + 14
+            return 14 + 7 + 8 + m(self.error_text()) + 14
         return 100
+
+    def error_text(self) -> str:
+        reason = (self.st.get("error") or "").strip()
+        return f"Fehler · {reason}" if reason else "Fehler"
 
     def wrap(self, text: str, zone: float) -> list[str]:
         key = (text, round(zone / 2) * 2)
@@ -595,6 +603,7 @@ class _Pill:
             self.check.snap(1.0 if new == "done" else 0.0)
             self.slide.snap(0.0 if st["reduced"] else 1.0)
             self.expand.snap(0.0)
+            self.lean.snap(1.0)
             self.wave.extend([0.0] * N_BARS)
             st["smooth"] = 0.0
             return True
@@ -609,6 +618,8 @@ class _Pill:
             self.ring.tune(SPRING_RING[0], RING_BOUNCE if bounce else SPRING_RING[1])
             self.ring.to(1.0 if new == "locked" else 0.0)
             self.arc.to(ARC_TAP if new == "armed" else 0.0)
+            # Tipp-Fenster: Pille lehnt sich minimal zurueck (Antizipation)
+            self.lean.to(LEAN_SCALE if new == "armed" and not st["reduced"] else 1.0)
         else:
             st["prev"] = old
             st["state_t0"] = now
@@ -616,6 +627,7 @@ class _Pill:
             self.fade.to(1.0, MORPH_S, now)
             self.ring.snap(1.0 if new == "locked" else 0.0)
             self.arc.snap(0.0)
+            self.lean.to(1.0)
             if new == "done":
                 self.check.snap(0.0)
                 self.check.to(1.0, CHECK_S, now + MORPH_S * 0.5)
@@ -660,7 +672,8 @@ class _Pill:
             for i in range(len(self.wave)):
                 self.wave[i] *= k
 
-        hovering = (st["hover"] and st["vis"] in WAVE_STATES and bool(st["text"])
+        held_long = st["held_since"] is not None and (now - st["held_since"]) >= HOLD_EXPAND_S
+        hovering = ((st["hover"] or held_long) and st["vis"] in WAVE_STATES and bool(st["text"])
                     and len(self.wrap(st["text"], MAX_TEXT_PX)) > 1)
         self.expand.to(1.0 if hovering else 0.0)
         self.expand.update(dt)
@@ -671,6 +684,7 @@ class _Pill:
         self.width.update(dt)
         self.ring.update(dt)
         self.arc.update(dt)
+        self.lean.update(dt)
         self.check.update(now)
         if self.fade.update(now) >= 1.0:
             st["prev"] = None
@@ -726,7 +740,19 @@ class _Pill:
         self.pill_rect = (px, py, w, ph)
         s = self.scale
         small = region.reduce(SS) if SS > 1 else region
-        return small, int(round(rx0 * s)), int(round(ry0 * s))
+        ox, oy = rx0 * s, ry0 * s
+        # Materialisieren + Zuruecklehnen: die fertige Region um die Unterkante
+        # der Pille skalieren (Origin = wo sie herkommt). Nur waehrend der
+        # Ein-/Ausblendung bzw. im Tipp-Fenster faellt hier ein Resize an.
+        mat = 1.0 if st["reduced"] else MATERIALIZE_FROM + (1 - MATERIALIZE_FROM) * clamp(self.alpha.v)
+        mat *= self.lean.v
+        if mat < 0.999:
+            nw, nh = max(1, int(round(small.width * mat))), max(1, int(round(small.height * mat)))
+            small = small.resize((nw, nh), Image.LANCZOS)
+            cxp, pbp = (px + w / 2) * s, pill_bottom * s
+            ox = cxp - (cxp - ox) * mat
+            oy = pbp - (pbp - oy) * mat
+        return small, int(round(ox)), int(round(oy))
 
     def _pill_body(self, d, px, py, w, ph):
         k = self.k
@@ -840,7 +866,7 @@ class _Pill:
                    fill=fg + (A(1.0),), anchor="lm")
         elif state == "error":
             d.ellipse([(px + 14) * k, (cy - 3.5) * k, (px + 21) * k, (cy + 3.5) * k], fill=dim + (A(1.0),))
-            d.text(((px + 29) * k, cy * k), "Fehler", font=f.font, fill=fg + (A(1.0),), anchor="lm")
+            d.text(((px + 29) * k, cy * k), self.error_text(), font=f.font, fill=fg + (A(1.0),), anchor="lm")
 
 
 # ---------------------------------------------------------------- Overlay (Thread + Watchdog)
@@ -952,6 +978,15 @@ class Overlay:
         self._last["reduced"] = bool(enabled)
         self._queue.put(("reduced", bool(enabled)))
 
+    def set_held(self, held: bool):
+        """Hotkey wird gerade gehalten (Modus hold/both): nach HOLD_EXPAND_S
+        klappt die Bubble mit dem Live-Text auch ohne Maus auf."""
+        self._queue.put(("held", bool(held)))
+
+    def set_error(self, reason: str):
+        """Kurzer Fehlergrund fuer den error-Zustand ("Kein Mikrofon")."""
+        self._queue.put(("error", (reason or "").strip()))
+
     # ---- Render-Thread ---------------------------------------------------------
 
     def _run(self):
@@ -1017,6 +1052,10 @@ class Overlay:
                             elif kind == "reduced":
                                 pill.st["reduced"] = bool(value)
                                 pill.st["showing"] = None
+                            elif kind == "held":
+                                pill.st["held_since"] = now if value else None
+                            elif kind == "error":
+                                pill.st["error"] = value
                             elif kind == "style":
                                 try:
                                     pill.set_font(*value)
