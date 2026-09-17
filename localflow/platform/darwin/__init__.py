@@ -32,6 +32,14 @@ def make_backends() -> SimpleNamespace:
     from .ducking import NoopDucker
     from .overlay import make_overlay as _make_overlay
 
+    # Tastatur-Layout (TIS) JETZT auf dem Main-Thread lesen: make_backends
+    # laeuft beim App-Start im Main-Thread, spaetere Hotkey-Wechsel kommen
+    # aus dem Dashboard-Thread und duerfen TIS nicht mehr anfassen.
+    try:
+        _hotkey.ensure_keycode_context()
+    except Exception:  # noqa: BLE001 - ohne pynput (Tests, Fremd-OS) egal
+        log.debug("Tastatur-Layout-Kontext nicht vorab lesbar", exc_info=True)
+
     return SimpleNamespace(
         make_ptt=lambda combo, controller, swallow_mouse=False, gate=None: _hotkey.PynputPtt(
             combo, controller, swallow_mouse=swallow_mouse, gate=gate),
@@ -49,5 +57,6 @@ def make_backends() -> SimpleNamespace:
             ensure_launcher_shortcut=_integration.ensure_launcher_shortcut,
             set_dpi_awareness=_integration.set_dpi_awareness,
             is_fullscreen_app_active=_integration.is_fullscreen_app_active,
-            prefers_reduced_motion=_integration.prefers_reduced_motion),
+            prefers_reduced_motion=_integration.prefers_reduced_motion,
+            run_on_main=_integration.run_on_main),
     )

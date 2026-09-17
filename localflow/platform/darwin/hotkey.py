@@ -12,6 +12,7 @@ ASSUMPTIONS (auf Hardware zu verifizieren):
   "nicht verschlucken" mit Warnung.
 """
 
+import contextlib
 import logging
 import queue
 import threading
@@ -19,6 +20,156 @@ import threading
 from ...controller import MOUSE_PARTS, _CANONICAL, normalize_combo
 
 log = logging.getLogger("localflow.darwin")
+
+# --- TIS/TSM nur auf dem Main-Thread ---------------------------------------
+# pynputs Tastatur-Listener ruft in SEINEM Thread keycode_context() auf und
+# damit TISCopyCurrentKeyboardInputSource/TISGetInputSourceProperty. Neuere
+# macOS-Versionen brechen den Prozess dabei hart ab (SIGABRT in HIToolbox,
+# dispatch_assert_queue: TIS/TSM darf nur vom Main-Thread kommen) - Feldbefund
+# v0.4.1: Absturz direkt nach "Diktat-Hotkey aktiv (darwin)", 100 %
+# reproduzierbar aus Terminal, LaunchAgent und App-Bundle.
+# Loesung: den Layout-Kontext EINMAL auf dem Main-Thread lesen (pynput kopiert
+# die Layout-Daten in Python-Bytes, das Ergebnis ist also threadsicher
+# weiterverwendbar) und pynputs keycode_context() durch eine Variante
+# ersetzen, die nur noch den Cache liefert. Die Listener-Threads fassen TIS
+# danach nie mehr an; die spaetere Zeichen-Uebersetzung laeuft ueber
+# UCKeyTranslate auf den kopierten Bytes (kein TIS).
+_kc = {"ctx": None, "orig": None, "patched": False}
+_kc_lock = threading.Lock()
+
+
+def _pynput_darwin_modules():
+    import pynput._util.darwin as pud
+    import pynput.keyboard._darwin as pkd
+    return pud, pkd
+
+
+def _install_keycode_patch(pud, pkd):
+    if _kc["patched"]:
+        return
+    _kc["orig"] = pud.keycode_context
+
+    @contextlib.contextmanager
+    def cached_keycode_context():
+        ctx = _kc["ctx"]
+        if ctx is None:
+            raise RuntimeError("Tastatur-Layout-Kontext fehlt - TIS darf nur auf "
+                               "dem Main-Thread gelesen werden")
+        yield ctx
+
+    pud.keycode_context = cached_keycode_context
+    pkd.keycode_context = cached_keycode_context
+    _kc["patched"] = True
+
+
+def _read_context_here():
+    """Original-keycode_context ausfuehren (NUR auf dem Main-Thread rufen)."""
+    with _kc["orig"]() as ctx:
+        _kc["ctx"] = ctx
+
+
+def ensure_keycode_context(wait_s: float = 3.0) -> bool:
+    """Vor JEDEM pynput-Tastatur-Listener aufrufen. Auf dem Main-Thread wird
+    der Kontext (neu) gelesen - so zieht ein Layoutwechsel beim naechsten
+    Hotkey-Setup nach. Abseits des Main-Threads wird nur der Cache benutzt;
+    fehlt er noch, wird das Lesen ueber den Cocoa-Main-Loop eingereiht.
+    RuntimeError, wenn der Kontext nicht sicher beschafft werden kann -
+    lieber kein Hotkey als ein Prozess-Abbruch."""
+    pud, pkd = _pynput_darwin_modules()
+    with _kc_lock:
+        _install_keycode_patch(pud, pkd)
+        if threading.current_thread() is threading.main_thread():
+            _read_context_here()
+            return True
+        if _kc["ctx"] is not None:
+            return True
+    done = threading.Event()
+
+    def hop():
+        try:
+            with _kc_lock:
+                _read_context_here()
+        except Exception:  # noqa: BLE001
+            log.exception("Tastatur-Layout-Kontext konnte nicht gelesen werden")
+        finally:
+            done.set()
+
+    try:
+        from PyObjCTools import AppHelper
+        AppHelper.callAfter(hop)
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError("Tastatur-Layout-Kontext nicht initialisiert und kein "
+                           "Cocoa-Main-Loop erreichbar") from exc
+    if not done.wait(wait_s) or _kc["ctx"] is None:
+        raise RuntimeError("Tastatur-Layout-Kontext nicht initialisiert "
+                           "(Main-Loop antwortet nicht)")
+    return True
+
+
+# Zweite, vom Monkeypatch UNABHAENGIGE Schicht: eigene Listener-Klassen.
+# - _run ueberspringt pynputs Listener._run (der keycode_context() ruft) und
+#   setzt den gecachten Kontext direkt; weiter geht es in ListenerMixin._run
+#   (Event-Tap + CFRunLoop wie gehabt).
+# - Die Event-Maske laesst NSSystemDefined (Medientasten) weg: pynput baut
+#   dafuer im Listener-Thread ein NSEvent (AppKit abseits des Main-Threads).
+#   LocalFlow braucht keine Medientasten.
+_safe = {"Listener": None, "GlobalHotKeys": None}
+
+
+def _verify_pynput_internals(keyboard, pud):
+    """Die Haertung haengt an pynput-Interna (gepinnt: pynput==1.8.2). Passen
+    sie nicht mehr, lieber KEIN Tastatur-Hotkey als ein Prozess-Abbruch."""
+    lst = keyboard.Listener
+    problems = []
+    if not hasattr(pud, "ListenerMixin") or not hasattr(pud.ListenerMixin, "_run"):
+        problems.append("ListenerMixin._run fehlt")
+    elif pud.ListenerMixin not in lst.__mro__:
+        problems.append("Listener erbt nicht von ListenerMixin")
+    if "_run" not in vars(lst):
+        problems.append("Listener._run fehlt")
+    ev = getattr(lst, "_event_to_key", None)
+    if ev is None or "_context" not in ev.__code__.co_names:
+        problems.append("Listener._event_to_key nutzt _context nicht")
+    if not hasattr(lst, "_EVENTS"):
+        problems.append("Listener._EVENTS fehlt")
+    if problems:
+        raise RuntimeError("pynput-Interna unerwartet (" + "; ".join(problems) + ") - "
+                           "Tastatur-Hotkeys deaktiviert, pynput==1.8.2 installieren")
+
+
+def _safe_classes():
+    if _safe["Listener"] is not None:
+        return _safe["Listener"], _safe["GlobalHotKeys"]
+    import Quartz
+    from pynput import keyboard
+    pud, _pkd = _pynput_darwin_modules()
+    _verify_pynput_internals(keyboard, pud)
+    mask = (Quartz.CGEventMaskBit(Quartz.kCGEventKeyDown)
+            | Quartz.CGEventMaskBit(Quartz.kCGEventKeyUp)
+            | Quartz.CGEventMaskBit(Quartz.kCGEventFlagsChanged))
+
+    def _run(self):
+        ctx = _kc["ctx"]
+        if ctx is None:
+            raise RuntimeError("Tastatur-Layout-Kontext fehlt (ensure_keycode_context)")
+        self._context = ctx
+        try:
+            # pynputs Listener._run (ruft TIS) ueberspringen -> ListenerMixin._run
+            super(keyboard.Listener, self)._run()
+        finally:
+            self._context = None
+
+    _safe["Listener"] = type("SafeListener", (keyboard.Listener,),
+                             {"_EVENTS": mask, "_run": _run})
+    _safe["GlobalHotKeys"] = type("SafeGlobalHotKeys", (keyboard.GlobalHotKeys,),
+                                  {"_EVENTS": mask, "_run": _run})
+    return _safe["Listener"], _safe["GlobalHotKeys"]
+
+
+def safe_keyboard_listener(**kwargs):
+    """Tastatur-Listener, der TIS nie im eigenen Thread anfasst."""
+    ensure_keycode_context()
+    return _safe_classes()[0](**kwargs)
 
 # pynput-Tastennamen -> kanonische Tokens ("win" == Command)
 _PYNPUT_TO_CANON = {
@@ -149,16 +300,24 @@ class PynputPtt:
     # -- Lifecycle --------------------------------------------------------
 
     def start(self):
-        from pynput import keyboard, mouse
+        from pynput import mouse
         self._running = True
         self._worker = threading.Thread(target=self._worker_loop, daemon=True,
                                         name="localflow-hotkey-dispatch")
         self._worker.start()
         if self.kb_parts:
-            self._kb_listener = keyboard.Listener(
-                on_press=lambda k: self._on_key(k, True),
-                on_release=lambda k: self._on_key(k, False))
-            self._kb_listener.start()
+            try:
+                self._kb_listener = safe_keyboard_listener(
+                    on_press=lambda k, *a: self._on_key(k, True),
+                    on_release=lambda k, *a: self._on_key(k, False))
+                self._kb_listener.start()
+            except Exception:  # noqa: BLE001
+                # Sanfter Ausfall: ohne sicheren Layout-Kontext KEIN Tastatur-
+                # Listener - ein stummer Hotkey ist reparierbar, ein SIGABRT
+                # beim Start nicht.
+                self._kb_listener = None
+                log.exception("Tastatur-Hotkey %s deaktiviert (macOS-Listener "
+                              "nicht sicher startbar)", "+".join(self.kb_parts))
         if self.mouse_parts:
             kwargs = {}
             if self.swallow_mouse:
@@ -195,8 +354,8 @@ class PynputPtt:
 
 def add_hotkey(combo: str, callback):
     """Toggle-Hotkey via pynput.GlobalHotKeys; Handle = Listener."""
-    from pynput import keyboard
-    hk = keyboard.GlobalHotKeys({to_pynput_combo(combo): callback})
+    ensure_keycode_context()
+    hk = _safe_classes()[1]({to_pynput_combo(combo): callback})
     hk.start()
     return hk
 
@@ -208,7 +367,7 @@ def remove_hotkey(handle):
 def capture_combo(timeout: float = 10.0) -> str | None:
     """Naechste gedrueckte Kombination aufzeichnen (Tastatur und/oder
     Maus-Seitentasten) - Pendant zur win32-Variante."""
-    from pynput import keyboard, mouse
+    from pynput import mouse
     lock = threading.Lock()
     down: set[str] = set()
     best: set[str] = set()
@@ -228,9 +387,9 @@ def capture_combo(timeout: float = 10.0) -> str | None:
                     done.set()
                 down.discard(part)
 
-    kb = keyboard.Listener(
-        on_press=lambda k: on_part(_key_to_part(k), True),
-        on_release=lambda k: on_part(_key_to_part(k), False))
+    kb = safe_keyboard_listener(
+        on_press=lambda k, *a: on_part(_key_to_part(k), True),
+        on_release=lambda k, *a: on_part(_key_to_part(k), False))
     ms = mouse.Listener(
         on_click=lambda x, y, b, pressed: on_part(_button_to_part(b), pressed))
     kb.start()

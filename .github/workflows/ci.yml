@@ -80,6 +80,11 @@ jobs:
           "
       - name: AppKit-Overlay (NSPanel-Pill, Runloop von Hand gepumpt)
         run: python tests/test_darwin_overlay_ci.py
+      # Feldbefund v0.4.1: SIGABRT in HIToolbox, weil pynputs Listener-Thread
+      # TIS/TSM aufrief. Startet unser Hotkey-Backend real (eigener Prozess)
+      # und protokolliert zum Vergleich einen ungepatchten pynput-Listener.
+      - name: Hotkey-Listener bricht den Prozess nicht ab (TIS nur Main-Thread)
+        run: python tests/test_darwin_hotkey_ci.py
       - name: Launcher-Bundle real erzeugen (~/Applications/LocalFlow.app)
         run: |
           pip install Pillow

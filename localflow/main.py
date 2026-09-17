@@ -318,10 +318,19 @@ class LocalFlowApp:
         if variant == self._tray_variant or self.tray is None:
             return
         self._tray_variant = variant
+        tray = self.tray
+
+        def apply():
+            try:
+                tray.icon = make_icon(variant=variant)
+            except Exception:  # noqa: BLE001 - Kosmetik, nie fatal
+                log.debug("Tray-Icon-Wechsel fehlgeschlagen", exc_info=True)
+        # Wird aus Hotkey-/Worker-Threads gerufen; auf macOS setzt pystray das
+        # Bild per AppKit im Aufrufer-Thread -> auf den Main-Thread marshallen.
         try:
-            self.tray.icon = make_icon(variant=variant)
-        except Exception:  # noqa: BLE001 - Kosmetik, nie fatal
-            log.debug("Tray-Icon-Wechsel fehlgeschlagen", exc_info=True)
+            self.backends.integration.run_on_main(apply)
+        except Exception:  # noqa: BLE001
+            log.debug("Tray-Icon-Wechsel nicht einreihbar", exc_info=True)
 
     def _overlay_orphan_guard(self):
         """Sicherheitsnetz: zeigt die Pill einen Nicht-hidden-Zustand, obwohl

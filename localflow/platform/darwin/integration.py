@@ -119,6 +119,22 @@ def set_dpi_awareness():
     """No-op: macOS skaliert Fenster selbst (Retina-Backing)."""
 
 
+def run_on_main(fn):
+    """AppKit-Aufrufe (z.B. pystrays Icon-Wechsel: setImage_ laeuft im
+    Aufrufer-Thread) gehoeren auf den Main-Thread - abseits davon kann macOS
+    den Prozess abbrechen. Im Main-Thread direkt, sonst in den Cocoa-Main-Loop
+    einreihen (nicht blockierend)."""
+    import threading
+    if threading.current_thread() is threading.main_thread():
+        fn()
+        return
+    try:
+        from PyObjCTools import AppHelper
+        AppHelper.callAfter(fn)
+    except Exception:  # noqa: BLE001 - Kosmetik darf nie den Ablauf stoeren
+        log.debug("run_on_main fehlgeschlagen", exc_info=True)
+
+
 def prefers_reduced_motion() -> bool:
     """macOS "Bewegung reduzieren" (Bedienungshilfen). Ohne pyobjc: False."""
     try:

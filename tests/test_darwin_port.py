@@ -121,4 +121,79 @@ assert script.startswith("#!/bin/bash")
 assert '"/opt/py thon/bin/python3" "/tmp/whispr clone/run.py"' in script  # Quoting
 print("Launcher-Bundle-Builder OK")
 
+# 10) TIS nur auf dem Main-Thread (Feldbefund v0.4.1: SIGABRT in HIToolbox,
+#     weil pynputs Listener-Thread keycode_context()/TIS selbst aufrief).
+#     Mit Attrappen der pynput-Module pruefbar: das Original darf nur auf dem
+#     Main-Thread laufen, Fremd-Threads bekommen den Cache, beide pynput-
+#     Module sind gepatcht, und ohne Cache + ohne Main-Loop gibt es einen
+#     sauberen RuntimeError statt eines TIS-Aufrufs im falschen Thread.
+import contextlib  # noqa: E402
+import threading  # noqa: E402
+import types  # noqa: E402
+
+tis_calls = []
+
+
+@contextlib.contextmanager
+def _fake_keycode_context():
+    tis_calls.append(threading.current_thread() is threading.main_thread())
+    yield ("kbd-type", b"layout-bytes")
+
+
+_saved = {k: sys.modules.get(k) for k in
+          ("pynput", "pynput._util", "pynput._util.darwin", "pynput.keyboard",
+           "pynput.keyboard._darwin", "PyObjCTools", "PyObjCTools.AppHelper")}
+pud = types.ModuleType("pynput._util.darwin")
+pud.keycode_context = _fake_keycode_context
+pkd = types.ModuleType("pynput.keyboard._darwin")
+pkd.keycode_context = _fake_keycode_context
+for name, mod in (("pynput", types.ModuleType("pynput")),
+                  ("pynput._util", types.ModuleType("pynput._util")),
+                  ("pynput._util.darwin", pud),
+                  ("pynput.keyboard", types.ModuleType("pynput.keyboard")),
+                  ("pynput.keyboard._darwin", pkd)):
+    sys.modules[name] = mod
+sys.modules["pynput._util"].darwin = pud
+sys.modules["pynput.keyboard"]._darwin = pkd
+sys.modules["PyObjCTools"] = None          # kein Cocoa-Main-Loop erreichbar
+sys.modules["PyObjCTools.AppHelper"] = None
+
+from localflow.platform.darwin import hotkey as dhk  # noqa: E402
+
+dhk._kc.update(ctx=None, orig=None, patched=False)
+try:
+    # a) Fremd-Thread OHNE Cache: kein TIS-Aufruf, sondern RuntimeError
+    err = {}
+
+    def _unprimed():
+        try:
+            dhk.ensure_keycode_context(wait_s=0.2)
+        except RuntimeError as e:
+            err["e"] = e
+    t = threading.Thread(target=_unprimed); t.start(); t.join(5)
+    assert "e" in err and tis_calls == [], (err, tis_calls)
+    # b) Main-Thread liest (und liest bei jedem Aufruf neu: Layoutwechsel)
+    assert dhk.ensure_keycode_context() is True and tis_calls == [True]
+    assert pud.keycode_context is pkd.keycode_context is not _fake_keycode_context
+    # c) Fremd-Thread MIT Cache: kein weiterer TIS-Lauf, Listener bekommt den Cache
+    got = {}
+
+    def _listener_thread():
+        dhk.ensure_keycode_context()
+        with pkd.keycode_context() as ctx:     # das ruft pynputs Listener._run
+            got["ctx"] = ctx
+    t = threading.Thread(target=_listener_thread); t.start(); t.join(5)
+    assert got["ctx"] == ("kbd-type", b"layout-bytes"), got
+    assert tis_calls == [True], f"TIS im Fremd-Thread gelesen: {tis_calls}"
+    dhk.ensure_keycode_context()
+    assert tis_calls == [True, True]           # Main-Thread frischt auf
+finally:
+    dhk._kc.update(ctx=None, orig=None, patched=False)
+    for k, v in _saved.items():
+        if v is None:
+            sys.modules.pop(k, None)
+        else:
+            sys.modules[k] = v
+print("TIS-nur-auf-dem-Main-Thread OK")
+
 print("\nDARWIN PORT TESTS PASSED")

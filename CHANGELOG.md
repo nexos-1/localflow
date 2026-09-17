@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Fixed
+- **macOS: Absturz beim Start (SIGABRT in HIToolbox, "Abort trap: 6")**
+  direkt nach "Diktat-Hotkey aktiv (darwin)", reproduzierbar aus Terminal,
+  LaunchAgent und App-Bundle. Ursache: pynputs Tastatur-Listener liest in
+  seinem eigenen Thread das Tastatur-Layout ueber TIS/TSM, was neuere
+  macOS-Versionen nur noch auf dem Main-Thread erlauben. LocalFlow liest
+  das Layout jetzt einmal auf dem Main-Thread (beim Backend-Aufbau und bei
+  jedem Hotkey-Setup im Main-Thread neu) und gibt pynputs Listenern nur
+  noch den Cache; Fremd-Threads (Dashboard-Hotkey-Wechsel, Hotkey-Capture)
+  fassen TIS nie mehr an. Gehaertet in Schichten: eigene Listener-Klassen
+  ueberspringen pynputs TIS-Pfad ganz und lauschen ohne NSSystemDefined
+  (kein NSEvent im Listener-Thread), ein Guard-Patch faengt jeden anderen
+  pynput-Pfad ab, und eine Selbstpruefung der pynput-Interna deaktiviert im
+  Zweifel nur den Tastatur-Hotkey, statt den Prozess abbrechen zu lassen.
+  Neuer CI-Schritt startet das Hotkey-Backend real auf dem macOS-26-Runner,
+  mit ungepatchtem pynput als Negativkontrolle.
+- **macOS: Tray-Icon-Wechsel nur noch auf dem Main-Thread.** Seit 0.4.0
+  wechselt das Icon bei Aufnahme und Pause; pystray setzt das Bild per
+  AppKit im Aufrufer-Thread, der Wechsel kam aber aus Hotkey- und
+  Worker-Threads. Laeuft jetzt ueber `integration.run_on_main`.
+
 ### Added
 - **Position der Pille einstellbar**: unten oder oben, jeweils links, Mitte
   oder rechts, plus "Abstand zum Rand" in Pixeln (Standard 44). Beides im

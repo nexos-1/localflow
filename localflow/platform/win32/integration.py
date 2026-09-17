@@ -23,6 +23,12 @@ def set_dpi_awareness():
         pass
 
 
+def run_on_main(fn):
+    """Windows: Tray-/UI-Aufrufe sind thread-tolerant (pystray marshallt
+    selbst) - direkt ausfuehren. Auf macOS muss AppKit auf den Main-Thread."""
+    fn()
+
+
 def prefers_reduced_motion() -> bool:
     """Windows-Einstellung "Animationen anzeigen" (Barrierefreiheit /
     Visuelle Effekte) - aus = Bewegung reduzieren. Liest

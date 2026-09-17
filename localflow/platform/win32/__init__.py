@@ -45,5 +45,6 @@ def make_backends() -> SimpleNamespace:
             ensure_launcher_shortcut=_integration.ensure_launcher_shortcut,
             set_dpi_awareness=_integration.set_dpi_awareness,
             is_fullscreen_app_active=_fullscreen.is_fullscreen_app_active,
-            prefers_reduced_motion=_integration.prefers_reduced_motion),
+            prefers_reduced_motion=_integration.prefers_reduced_motion,
+            run_on_main=_integration.run_on_main),
     )
