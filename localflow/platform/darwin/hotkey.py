@@ -127,9 +127,9 @@ def _verify_pynput_internals(keyboard, pud):
         problems.append("Listener erbt nicht von ListenerMixin")
     if "_run" not in vars(lst):
         problems.append("Listener._run fehlt")
-    ev = getattr(lst, "_event_to_key", None)
-    if ev is None or "_context" not in ev.__code__.co_names:
-        problems.append("Listener._event_to_key nutzt _context nicht")
+    # Hinweis: pynput 1.8.x nutzt den Layout-Kontext beim Lauschen gar nicht
+    # mehr (_event_to_key liest den Text direkt aus dem CGEvent) - der
+    # TIS-Aufruf in Listener._run ist dort totes Gepaeck, das wir ueberspringen.
     if not hasattr(lst, "_EVENTS"):
         problems.append("Listener._EVENTS fehlt")
     if problems:
