@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Changed
+- **Glass Mic heisst jetzt CouchMic** (https://github.com/nexos-1/couchmic).
+  Modul `localflow/couchmic.py`, Settings `couchmic_enabled`, `couchmic_url`
+  und `couchmic_device`, Texte in Dashboard und Log. Die Erkennung bleibt
+  gleich (Port 8321, `/api/stats`). Gespeicherte `glassmic_*`-Werte werden
+  beim ersten Start automatisch uebernommen und die alten Schluessel aus der
+  `config.json` entfernt.
+
 ### Fixed
 - **macOS: Absturz beim Start (SIGABRT in HIToolbox, "Abort trap: 6")**
   direkt nach "Diktat-Hotkey aktiv (darwin)", reproduzierbar aus Terminal,

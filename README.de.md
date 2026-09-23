@@ -62,6 +62,12 @@ der Overlay-Pill (die Pill waechst mit); Hover klappt den gesamten Text
 mehrzeilig aus. Eingefuegt wird erst beim Loslassen - der finale, vom
 AI-Cleanup bereinigte Text. Abschaltbar in den Einstellungen.
 
+**iPad als Mikrofon:** Laeuft [CouchMic](https://github.com/nexos-1/couchmic)
+und ist ein iPad verbunden, nimmt LocalFlow automatisch von "CABLE Output"
+(VB-CABLE) auf, die Pill zeigt dann ein "iPad"-Badge. Ohne iPad oder ohne
+CouchMic bleibt es beim normalen Mikrofon; die Pruefung kostet wenige ms und
+faellt still zurueck.
+
 Die Flow-Bar (kleine schwarze Pill unten in der Bildschirmmitte, monochrom)
 zeigt: pulsierender Punkt + live Waveform bzw. Live-Transkript = Aufnahme
 (Pegel adaptiv - die Balken skalieren sich automatisch auf die tatsaechliche

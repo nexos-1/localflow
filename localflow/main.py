@@ -368,13 +368,13 @@ class LocalFlowApp:
             if self.settings.get("duck_audio"):
                 self.ducker.duck()
             device_override = None
-            if self.settings.get("glassmic_enabled"):
-                from . import glassmic
-                if glassmic.active(self.settings.get("glassmic_url") or glassmic.DEFAULT_URL):
-                    device_override = self.settings.get("glassmic_device") or glassmic.DEFAULT_DEVICE
-                    log.info("Glass Mic aktiv: Aufnahme vom iPad (%s)", device_override)
+            if self.settings.get("couchmic_enabled"):
+                from . import couchmic
+                if couchmic.active(self.settings.get("couchmic_url") or couchmic.DEFAULT_URL):
+                    device_override = self.settings.get("couchmic_device") or couchmic.DEFAULT_DEVICE
+                    log.info("CouchMic aktiv: Aufnahme vom iPad (%s)", device_override)
             self.recorder.start(device_override)
-            # Badge in der Pille: "iPad", wenn die Aufnahme ueber Glass Mic laeuft.
+            # Badge in der Pille: "iPad", wenn die Aufnahme ueber CouchMic laeuft.
             self.overlay.set_source("ipad" if device_override else "pc")
             self._arm_max_duration_watchdog(self._record_session)
             if self.settings.get("play_sounds"):

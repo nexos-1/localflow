@@ -48,11 +48,11 @@ DEFAULTS = {
     "ollama_url": "http://127.0.0.1:11434",  # 127.0.0.1 statt localhost: spart ~2s IPv6-Fallback
     "ai_cleanup": True,
     "audio_device": None,           # None = Windows-Default
-    # Glass Mic (iPad-Mikrofon ueber VB-CABLE): ist ein iPad verbunden, nimmt
-    # LocalFlow von glassmic_device auf statt von audio_device. Siehe glassmic.py.
-    "glassmic_enabled": True,
-    "glassmic_url": "http://127.0.0.1:8321",
-    "glassmic_device": "CABLE Output (VB-Audio Virtual Cable), Windows WASAPI",
+    # CouchMic (iPad-Mikrofon ueber VB-CABLE): ist ein iPad verbunden, nimmt
+    # LocalFlow von couchmic_device auf statt von audio_device. Siehe couchmic.py.
+    "couchmic_enabled": True,
+    "couchmic_url": "http://127.0.0.1:8321",
+    "couchmic_device": "CABLE Output (VB-Audio Virtual Cable), Windows WASAPI",
     "play_sounds": True,
     "duck_audio": True,             # andere Apps (YouTube etc.) waehrend Aufnahme stummschalten
     "duck_volume": 0.0,             # Restlautstaerke waehrend der Aufnahme (0 = komplett stumm)
@@ -100,6 +100,15 @@ DEFAULTS = {
     "smart_spacing": True,
 }
 
+# Umbenannte Schluessel (alt -> neu). Werte alter Configs werden beim Laden
+# uebernommen; der alte Schluessel faellt beim naechsten Speichern weg.
+# glassmic_*: das Projekt "Glass Mic" heisst seit September 2026 CouchMic.
+RENAMED_KEYS = {
+    "glassmic_enabled": "couchmic_enabled",
+    "glassmic_url": "couchmic_url",
+    "glassmic_device": "couchmic_device",
+}
+
 
 class Settings:
     def __init__(self, path: str | None = None):
@@ -112,6 +121,10 @@ class Settings:
         try:
             with open(self.path, encoding="utf-8") as f:
                 stored = json.load(f)
+            renamed = [old for old, new in RENAMED_KEYS.items()
+                       if old in stored and new not in stored]
+            for old in renamed:
+                stored[RENAMED_KEYS[old]] = stored[old]
             self.data.update({k: v for k, v in stored.items() if k in DEFAULTS})
             # Migration: die Layered-Window-Pille ist groesser als die alte
             # Tk-Pille; ein gespeicherter 9-12-px-Wert stammt aus der alten
@@ -124,6 +137,11 @@ class Settings:
                     self.save()
             except (TypeError, ValueError):
                 self.data["overlay_font_size"] = DEFAULTS["overlay_font_size"]
+            # Alte Schluessel stehen noch in der Datei: einmal neu schreiben.
+            if any(old in stored for old in RENAMED_KEYS):
+                log.info("Settings-Schluessel umbenannt: %s",
+                         ", ".join(f"{o} -> {RENAMED_KEYS[o]}" for o in renamed) or "nur alte entfernt")
+                self.save()
         except FileNotFoundError:
             self.save()
         except Exception as e:  # noqa: BLE001

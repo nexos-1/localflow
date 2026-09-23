@@ -81,7 +81,7 @@ class Recorder:
         # Stream nur waehrend der Aufnahme offen (Windows-"Mikrofon aktiv"-
         # Anzeige nur beim Diktieren). open/close koennen aus Diktat- UND
         # Flask-Thread kommen -> unter Stream-Lock serialisieren.
-        # device_override (z.B. Glass Mic / iPad) gilt nur fuer diese Aufnahme;
+        # device_override (z.B. CouchMic / iPad) gilt nur fuer diese Aufnahme;
         # schlaegt das Oeffnen fehl, faellt es auf das konfigurierte Geraet zurueck.
         with self._stream_lock:
             if self._stream is not None:
