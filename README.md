@@ -55,6 +55,8 @@ dictionary and dictation history. German README: [README.de.md](README.de.md)
   running and an iPad connected, LocalFlow records from "CABLE Output"
   automatically and shows an "iPad" badge in the pill; otherwise it uses your
   normal microphone (check costs a few ms, silent fallback)
+- **Sound sets**: "Soft" (generated chimes, default) or "Classic" (bundled
+  WAVs), switchable live in the dashboard
 - **Custom sounds**: replace the start/stop/hands-free chimes with your own
   WAVs (drop them into `data/sounds/` and list their names in
   `custom.txt` - they survive app updates)

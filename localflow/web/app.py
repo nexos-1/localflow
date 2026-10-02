@@ -16,7 +16,7 @@ EDITABLE_SETTINGS = [
     "voice_commands_enabled", "voice_commands", "live_preview", "glass_pill",
     "overlay_font", "overlay_font_size", "overlay_theme", "smart_spacing",
     "type_max_chars", "overlay_position", "overlay_margin",
-    "enter_submits", "escape_cancels", "processing_feedback",
+    "enter_submits", "escape_cancels", "processing_feedback", "sound_set",
 ]
 
 
@@ -33,7 +33,8 @@ _INT_SETTINGS = {"beam_size", "cleanup_min_words", "tail_ms", "overlay_font_size
 _FLOAT_SETTINGS = {"min_duration_s", "paste_restore_delay", "cleanup_timeout_s",
                    "duck_volume"}
 _STR_SETTINGS = {"hotkey", "hotkey2", "toggle_hotkey", "ptt_mode", "language",
-                 "ollama_model", "overlay_font", "overlay_theme", "overlay_position"}
+                 "ollama_model", "overlay_font", "overlay_theme", "overlay_position",
+                 "sound_set"}
 
 
 def _coerce_setting(key: str, value):
@@ -113,6 +114,13 @@ def _apply_runtime_changes(main_app, settings, changed: set):
             main_app.recorder.device = settings.get("audio_device")
         except Exception:
             log.exception("Audio-Geraetewechsel fehlgeschlagen")
+    if "sound_set" in changed:
+        try:
+            main_app.backends.sounds.set_sound_set(settings.get("sound_set"))
+            if settings.get("play_sounds"):
+                main_app.backends.sounds.play("start")  # Vorhoeren beim Umschalten
+        except Exception:
+            log.exception("Sound-Paket-Wechsel fehlgeschlagen")
     if "glass_pill" in changed:
         try:
             main_app.overlay.set_glass(settings.get("glass_pill"))
@@ -270,6 +278,8 @@ def create_app(settings, db, main_app=None):
                 log.exception("Autostart-Umschalten fehlgeschlagen")
         if "voice_commands" in data:
             data["voice_commands"] = _sanitize_voice_commands(data["voice_commands"])
+        if "sound_set" in data and data["sound_set"] not in ("soft", "classic"):
+            data.pop("sound_set")
         if "overlay_theme" in data and data["overlay_theme"] not in ("dark", "light"):
             data["overlay_theme"] = "dark"
         if "overlay_position" in data:

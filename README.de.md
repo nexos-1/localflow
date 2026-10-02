@@ -84,7 +84,9 @@ Fenster nach kurzem Tipp, Thinking-Orb = Verarbeitung, Haken = eingefuegt
 (beides abschaltbar: dann verschwindet die Pille beim Stopp sofort).
 Alle Uebergaenge laufen als Federn (unterbrechbar, kein Abreissen). Optik
 (Design-Thema Dunkel/Hell, Schriftart, Schriftgroesse, Glas-Look) ist im
-Dashboard unter "Pille (Overlay)" live einstellbar. Eigene Sounds: WAVs nach `data/sounds/`
+Dashboard unter "Pille (Overlay)" live einstellbar. Sound-Paket "Weich"
+(erzeugte Chimes, Standard) oder "Klassisch" (mitgelieferte WAVs) unter
+"Sprache und Audio". Eigene Sounds: WAVs nach `data/sounds/`
 legen (start/stop/lock/error.wav) und die Namen in `custom.txt` eintragen -
 sie werden nie von der Generierung ueberschrieben.
 

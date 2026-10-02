@@ -11,6 +11,11 @@
   durch, die Modifier eines gehaltenen Diktat-Hotkeys sind erlaubt. Kein
   Enter, wenn nichts erkannt wurde oder das Einfuegen scheiterte; endet das
   Diktat auf "press enter", bleibt es bei einem Enter.
+- **Sound-Pakete**: "Weich" (die erzeugten Chimes, Standard) oder
+  "Klassisch" (mitgelieferte WAVs in `localflow/assets/sounds/classic/`),
+  umschaltbar im Dashboard unter "Sprache und Audio", wirkt sofort und
+  spielt beim Umschalten den Start-Sound zur Probe. Eigene WAVs ueber
+  `data/sounds/custom.txt` haben weiter Vorrang.
 - **Verarbeitung und Haken abschaltbar** (Dashboard unter "Pille (Overlay)",
   Standard an): Aus = die Pille verschwindet beim Stopp sofort und der Text
   wird einfach eingefuegt, ohne Thinking-Orb und Haken. Fehler und "Text

@@ -283,6 +283,10 @@
           <input type="checkbox" class="sw" role="switch" id="s-play_sounds">
         </div>
         <div class="srow">
+          <div class="lbl"><label for="s-sound_set">Sound-Paket</label><small>Beim Umschalten ist der Start-Sound kurz zu hören.</small></div>
+          <div class="ctl"><select id="s-sound_set"><option value="soft">Weich</option><option value="classic">Klassisch</option></select></div>
+        </div>
+        <div class="srow">
           <label for="s-duck_audio">System-Audio während der Aufnahme stummschalten<small>YouTube, Spotify und andere Apps werden leise, bis das Diktat endet.</small></label>
           <input type="checkbox" class="sw" role="switch" id="s-duck_audio">
         </div>
@@ -660,6 +664,7 @@ async function loadSettings() {
   for (const k of ["hotkey","hotkey2","toggle_hotkey","language","ptt_mode"]) $("#s-"+k).value = s[k] ?? "";
   $("#s-ai_cleanup").checked = !!s.ai_cleanup;
   $("#s-play_sounds").checked = !!s.play_sounds;
+  $("#s-sound_set").value = s.sound_set || "soft";
   $("#s-duck_audio").checked = !!s.duck_audio;
   $("#s-live_preview").checked = !!s.live_preview;
   $("#s-smart_spacing").checked = !!s.smart_spacing;
@@ -705,6 +710,7 @@ $("#s-save").onclick = async () => {
     language: $("#s-language").value, ollama_model: $("#s-ollama_model").value,
     audio_device: dev === "" ? null : parseInt(dev, 10),
     ai_cleanup: $("#s-ai_cleanup").checked, play_sounds: $("#s-play_sounds").checked,
+    sound_set: $("#s-sound_set").value,
     duck_audio: $("#s-duck_audio").checked,
     live_preview: $("#s-live_preview").checked,
     smart_spacing: $("#s-smart_spacing").checked,
@@ -733,7 +739,7 @@ $("#s-import").onclick = async () => {
 // Feedback in der Oberflaeche, kein Formular). Hotkeys, Sprachbefehle und
 // die Tipp-Laenge sind Texteingaben und gehen weiter ueber "Speichern".
 const LIVE_KEYS = ["swallow_mouse_hotkey", "pause_in_fullscreen", "voice_commands_enabled",
-  "enter_submits", "escape_cancels",
+  "enter_submits", "escape_cancels", "sound_set",
   "language", "audio_device", "ollama_model", "ai_cleanup", "play_sounds", "duck_audio",
   "live_preview", "smart_spacing", "autostart", "ptt_mode"];
 for (const key of LIVE_KEYS) {

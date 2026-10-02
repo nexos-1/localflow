@@ -60,6 +60,8 @@ DEFAULTS = {
     "couchmic_url": "http://127.0.0.1:8321",
     "couchmic_device": "CABLE Output (VB-Audio Virtual Cable), Windows WASAPI",
     "play_sounds": True,
+    # Sound-Paket: "soft" (erzeugte Chimes) | "classic" (mitgelieferte WAVs).
+    "sound_set": "soft",
     "duck_audio": True,             # andere Apps (YouTube etc.) waehrend Aufnahme stummschalten
     "duck_volume": 0.0,             # Restlautstaerke waehrend der Aufnahme (0 = komplett stumm)
     "min_duration_s": 0.4,          # kuerzere Aufnahmen verwerfen (versehentlicher Tastendruck)

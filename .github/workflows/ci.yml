@@ -33,6 +33,7 @@ jobs:
           python tests/test_couchmic.py
           python tests/test_key_intercept.py
           python tests/test_processing_feedback.py
+          python tests/test_sound_sets.py
       # Diese laufen bewusst NICHT hier - sie brauchen eine interaktive
       # Windows-Session (echter Desktop, Fensterfokus, synthetische Eingaben).
       # Auf der Runner-Fensterstation gibt es das nicht. Lokal ausfuehren:

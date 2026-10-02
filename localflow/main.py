@@ -148,6 +148,7 @@ class LocalFlowApp:
 
     def start(self):
         self.backends.sounds.ensure_sounds()
+        self.backends.sounds.set_sound_set(self.settings.get("sound_set"))
         threading.Thread(target=self._ensure_shortcut, daemon=True).start()
         self.overlay.start()
         self.overlay.set_glass(self.settings.get("glass_pill"))

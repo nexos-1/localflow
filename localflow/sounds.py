@@ -19,6 +19,32 @@ SOUND_DIR = os.path.join(APP_DIR, "sounds")
 SOUND_VERSION = "2"
 RATE = 44100
 
+# Sound-Pakete (Setting sound_set): "soft" = die hier erzeugten Chimes in
+# SOUND_DIR, "classic" = mitgelieferte WAVs unter localflow/assets/sounds/
+# classic/. Fehlt dort ein Name (z.B. error), gilt der erzeugte Chime.
+SOUND_SETS = ("soft", "classic")
+BUNDLED_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "sounds")
+_sound_set = "soft"
+
+
+def set_sound_set(name: str):
+    """Aktives Sound-Paket setzen; unbekannte Namen fallen auf "soft"."""
+    global _sound_set
+    _sound_set = name if name in SOUND_SETS else "soft"
+
+
+def sound_path(name: str) -> str | None:
+    """Datei fuer einen Sound. Reihenfolge: eigene WAVs des Nutzers (in
+    custom.txt eingetragen) > aktives mitgeliefertes Paket > erzeugter Chime."""
+    own = os.path.join(SOUND_DIR, f"{name}.wav")
+    if name in _custom_names() and os.path.exists(own):
+        return own
+    if _sound_set != "soft":
+        bundled = os.path.join(BUNDLED_DIR, _sound_set, f"{name}.wav")
+        if os.path.exists(bundled):
+            return bundled
+    return own if os.path.exists(own) else None
+
 
 def _note(freq: float, dur: float, amp: float = 0.22) -> np.ndarray:
     """Weicher glockiger Einzelton."""
@@ -99,7 +125,7 @@ def play(name: str):
     """Asynchrones Abspielen. Die Synthese oben ist plattformneutral; nur
     dieses Playback ist Windows-spezifisch (lazy Import, damit das Modul
     ueberall importierbar bleibt - darwin bekommt ein eigenes Backend)."""
-    path = os.path.join(SOUND_DIR, f"{name}.wav")
-    if os.path.exists(path) and sys.platform == "win32":
+    path = sound_path(name)
+    if path and sys.platform == "win32":
         import winsound
         winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC)

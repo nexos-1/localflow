@@ -5,14 +5,14 @@ import logging
 import os
 import subprocess
 
-from ...sounds import SOUND_DIR, ensure_sounds  # noqa: F401 - Synthese geteilt
+from ...sounds import SOUND_DIR, ensure_sounds, set_sound_set, sound_path  # noqa: F401 - geteilt
 
 log = logging.getLogger("localflow.darwin")
 
 
 def play(name: str):
-    path = os.path.join(SOUND_DIR, f"{name}.wav")
-    if not os.path.exists(path):
+    path = sound_path(name)
+    if not path:
         return
     try:
         subprocess.Popen(["afplay", path], stdout=subprocess.DEVNULL,
