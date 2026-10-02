@@ -584,7 +584,9 @@ class LocalFlowApp:
             return
         if self.settings.get("play_sounds"):
             self.backends.sounds.play("stop")
-        self._set_overlay_if_current(session, "processing")
+        # processing_feedback aus: Pille sofort weg, kein Orb, kein Haken.
+        self._set_overlay_if_current(
+            session, "processing" if self.settings.get("processing_feedback") else "hidden")
         threading.Thread(target=self._process,
                          args=(session, audio, duration, app_name, title,
                                target_hwnd, trim_ctx, submit),
@@ -696,7 +698,7 @@ class LocalFlowApp:
                 self._notify("Zielfenster nicht fokussierbar",
                              "Der Text liegt im Clipboard - mit Strg+V einfuegen.")
                 time.sleep(CLIPBOARD_HOLD_S)
-            elif status == inj.PASTE_OK:
+            elif status == inj.PASTE_OK and self.settings.get("processing_feedback"):
                 # Completion-Feedback: Haken in der Pille, kein dritter Sound
                 self._set_overlay_if_current(session, "done")
                 time.sleep(DONE_HOLD_S)

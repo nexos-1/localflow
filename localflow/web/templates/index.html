@@ -364,6 +364,10 @@
         <label for="s-glass_pill">Glas-Optik<small>Pille durchscheinend, der Desktop schimmert durch.</small></label>
         <input type="checkbox" class="sw" role="switch" id="s-glass_pill">
       </div>
+      <div class="srow">
+        <label for="s-processing_feedback">Verarbeitung und Haken anzeigen<small>Aus: Die Pille verschwindet beim Stopp sofort, der Text wird einfach eingefügt. Fehler werden weiter angezeigt.</small></label>
+        <input type="checkbox" class="sw" role="switch" id="s-processing_feedback">
+      </div>
     </div>
 
     <div class="card group">
@@ -616,6 +620,8 @@ function renderDesign(s) {
     zsel.onchange = () => liveSave({overlay_font_size: parseInt(zsel.value, 10)});
   }
   if (g) { g.checked = !!s.glass_pill; g.onchange = () => liveSave({glass_pill: g.checked}); }
+  const pf = $("#s-processing_feedback");
+  if (pf) { pf.checked = s.processing_feedback !== false; pf.onchange = () => liveSave({processing_feedback: pf.checked}); }
   const pos = $("#s-overlay_position"), mar = $("#s-overlay_margin");
   if (pos) { pos.value = s.overlay_position || "bottom-center"; pos.onchange = () => liveSave({overlay_position: pos.value}); }
   if (mar) {

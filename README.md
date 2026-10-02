@@ -49,7 +49,7 @@ dictionary and dictation history. German README: [README.de.md](README.de.md)
 - **Animated overlay pill**: monochrome, live waveform with auto-gain,
   spring-driven state transitions (interruptible, velocity-preserving), tap
   anticipation for hands-free mode, a thinking-orb while processing, a check
-  mark once pasted, live transcript, hover-to-expand; pill design panel with
+  mark once pasted (both can be switched off), live transcript, hover-to-expand; pill design panel with
   dark/light theme, glass look, font family and size - all applied live
 - **iPad as microphone** (optional): with [CouchMic](https://github.com/nexos-1/couchmic)
   running and an iPad connected, LocalFlow records from "CABLE Output"

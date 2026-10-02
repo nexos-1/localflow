@@ -80,7 +80,8 @@ Die Flow-Bar (kleine schwarze Pill unten in der Bildschirmmitte, monochrom)
 zeigt: pulsierender Punkt + live Waveform bzw. Live-Transkript = Aufnahme
 (Pegel adaptiv - die Balken skalieren sich automatisch auf die tatsaechliche
 Mikrofonlautstaerke), Ring statt Punkt = Freisprechen, Ringbogen = Tipp-
-Fenster nach kurzem Tipp, Thinking-Orb = Verarbeitung, Haken = eingefuegt.
+Fenster nach kurzem Tipp, Thinking-Orb = Verarbeitung, Haken = eingefuegt
+(beides abschaltbar: dann verschwindet die Pille beim Stopp sofort).
 Alle Uebergaenge laufen als Federn (unterbrechbar, kein Abreissen). Optik
 (Design-Thema Dunkel/Hell, Schriftart, Schriftgroesse, Glas-Look) ist im
 Dashboard unter "Pille (Overlay)" live einstellbar. Eigene Sounds: WAVs nach `data/sounds/`

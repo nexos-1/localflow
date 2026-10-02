@@ -100,6 +100,10 @@ DEFAULTS = {
     # top-center, top-left, top-right; Abstand zum Arbeitsflaechen-Rand in px.
     "overlay_position": "bottom-center",
     "overlay_margin": 44,
+    # Nach dem Stopp Verarbeitung (Thinking-Orb) und Haken in der Pille
+    # zeigen. Aus: Pille verschwindet beim Stopp sofort, der Text wird
+    # einfach eingefuegt. Fehler und "nur im Clipboard" kommen trotzdem.
+    "processing_feedback": True,
     # Smart Spacing: klebt das Diktat sonst direkt an bestehenden Text
     # (Satzende, Wortmitte), wird automatisch ein Leerzeichen vorangestellt.
     # In Terminals automatisch deaktiviert (Sonde nutzt Strg+C).

@@ -11,6 +11,10 @@
   durch, die Modifier eines gehaltenen Diktat-Hotkeys sind erlaubt. Kein
   Enter, wenn nichts erkannt wurde oder das Einfuegen scheiterte; endet das
   Diktat auf "press enter", bleibt es bei einem Enter.
+- **Verarbeitung und Haken abschaltbar** (Dashboard unter "Pille (Overlay)",
+  Standard an): Aus = die Pille verschwindet beim Stopp sofort und der Text
+  wird einfach eingefuegt, ohne Thinking-Orb und Haken. Fehler und "Text
+  liegt nur im Clipboard" werden weiter angezeigt.
 - **Escape verwirft die Aufnahme** (Windows, eigene Option, Standard aus).
 - Beides ueber einen eigenen Low-Level-Tastatur-Hook, der ausserhalb einer
   Aufnahme jede Taste unveraendert durchlaesst. Tests:
