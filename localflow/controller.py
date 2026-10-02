@@ -186,6 +186,16 @@ class DictationController:
                 self._state = self.IDLE
                 self.on_stop()
 
+    def force_cancel(self):
+        """Von aussen verwerfen (Escape waehrend der Aufnahme): wie ein
+        versehentlicher Einzeltipp, ohne Verarbeitung."""
+        with self._lock:
+            self._cancel_timer()
+            self._owner = None
+            if self._state in (self.HOLD, self.ARMED, self.LOCKED):
+                self._state = self.IDLE
+                self.on_cancel()
+
     def start_locked(self):
         """Von aussen direkt im Freisprech-Modus starten (Toggle-Hotkey)."""
         with self._lock:

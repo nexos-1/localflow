@@ -250,6 +250,14 @@
           <input type="checkbox" class="sw" role="switch" id="s-pause_in_fullscreen">
         </div>
         <div class="srow">
+          <label for="s-enter_submits">Enter beendet die Aufnahme und sendet ab<small>Enter während der Aufnahme stoppt sie, fügt den fertigen Text ein und drückt danach Enter. Shift+Enter bleibt ein Zeilenumbruch.</small></label>
+          <input type="checkbox" class="sw" role="switch" id="s-enter_submits">
+        </div>
+        <div class="srow">
+          <label for="s-escape_cancels">Escape verwirft die Aufnahme<small>Escape während der Aufnahme bricht sie ab, ohne etwas einzufügen.</small></label>
+          <input type="checkbox" class="sw" role="switch" id="s-escape_cancels">
+        </div>
+        <div class="srow">
           <label for="s-voice_commands_enabled">Sprachbefehle<small>Am Ende des Diktats gesagt, wird der Befehl nicht getippt, sondern als Taste gedrückt.</small></label>
           <input type="checkbox" class="sw" role="switch" id="s-voice_commands_enabled">
         </div>
@@ -659,6 +667,8 @@ async function loadSettings() {
   renderDesign(s);
   $("#s-swallow_mouse_hotkey").checked = !!s.swallow_mouse_hotkey;
   $("#s-pause_in_fullscreen").checked = !!s.pause_in_fullscreen;
+  $("#s-enter_submits").checked = !!s.enter_submits;
+  $("#s-escape_cancels").checked = !!s.escape_cancels;
   $("#s-voice_commands_enabled").checked = !!s.voice_commands_enabled;
   renderVoiceCommands(s.voice_commands || []);
   $("#s-autostart").checked = !!s.autostart;
@@ -697,6 +707,8 @@ $("#s-save").onclick = async () => {
       ? Math.max(1, parseInt($("#s-type_max_chars").value, 10) || 200) : 0,
     swallow_mouse_hotkey: $("#s-swallow_mouse_hotkey").checked,
     pause_in_fullscreen: $("#s-pause_in_fullscreen").checked,
+    enter_submits: $("#s-enter_submits").checked,
+    escape_cancels: $("#s-escape_cancels").checked,
     voice_commands_enabled: $("#s-voice_commands_enabled").checked,
     voice_commands: collectVoiceCommands(),
     autostart: $("#s-autostart").checked,
@@ -715,6 +727,7 @@ $("#s-import").onclick = async () => {
 // Feedback in der Oberflaeche, kein Formular). Hotkeys, Sprachbefehle und
 // die Tipp-Laenge sind Texteingaben und gehen weiter ueber "Speichern".
 const LIVE_KEYS = ["swallow_mouse_hotkey", "pause_in_fullscreen", "voice_commands_enabled",
+  "enter_submits", "escape_cancels",
   "language", "audio_device", "ollama_model", "ai_cleanup", "play_sounds", "duck_audio",
   "live_preview", "smart_spacing", "autostart", "ptt_mode"];
 for (const key of LIVE_KEYS) {

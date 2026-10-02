@@ -32,6 +32,10 @@ dictionary and dictation history. German README: [README.de.md](README.de.md)
 - **Live transcript preview**: watch your words appear in the overlay pill
   *while* you speak; hover over the pill to expand the full text as
   multi-line. The final, cleaned text is pasted on release. Toggleable.
+- **Enter to submit** (optional, Windows): press Enter while recording and
+  LocalFlow stops, pastes the finished text and then presses Enter for you -
+  no extra stop press before sending a chat or agent prompt. Escape while
+  recording discards the dictation (separate toggle).
 - **Voice commands**: end a dictation with "press enter", "press backspace",
   "press escape" or "press delete" and LocalFlow presses the key instead of
   typing the phrase. Trigger words are editable in the dashboard.
@@ -223,6 +227,7 @@ Run individual suites from `tests/` with the venv Python, e.g.:
 .venv\Scripts\python.exe tests\test_dictation_modes.py  # hotkey state machine
 .venv\Scripts\python.exe tests\test_second_hotkey.py    # dual hotkey wiring
 .venv\Scripts\python.exe tests\test_commands.py         # voice command parsing
+.venv\Scripts\python.exe tests\test_key_intercept.py    # Enter to submit / Escape to discard
 .venv\Scripts\python.exe tests\test_cleanup_start.py    # Ollama no-double-spawn
 .venv\Scripts\python.exe tests\test_levelmeter.py       # adaptive level meter
 .venv\Scripts\python.exe tests\test_overlay_model.py    # pill springs, tweens, check mark

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Added
+- **Enter beendet die Aufnahme und sendet ab** (Windows, Option im Dashboard
+  unter Hotkeys, Standard aus): Enter waehrend einer Aufnahme stoppt sie,
+  der fertige Text wird eingefuegt und danach Enter gedrueckt - kein extra
+  Stopp-Druck mehr vor dem Absenden. Das Enter selbst wird verschluckt,
+  damit die App nicht vorzeitig absendet. Shift/Ctrl+Enter gehen normal
+  durch, die Modifier eines gehaltenen Diktat-Hotkeys sind erlaubt. Kein
+  Enter, wenn nichts erkannt wurde oder das Einfuegen scheiterte; endet das
+  Diktat auf "press enter", bleibt es bei einem Enter.
+- **Escape verwirft die Aufnahme** (Windows, eigene Option, Standard aus).
+- Beides ueber einen eigenen Low-Level-Tastatur-Hook, der ausserhalb einer
+  Aufnahme jede Taste unveraendert durchlaesst. Tests:
+  `tests/test_key_intercept.py` (CI) und `tests/test_e2e_key_intercept.py`
+  (lokal, echtes Fenster).
+
 ### Changed
 - **Glass Mic heisst jetzt CouchMic** (https://github.com/nexos-1/couchmic).
   Modul `localflow/couchmic.py`, Settings `couchmic_enabled`, `couchmic_url`

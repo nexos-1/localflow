@@ -37,6 +37,12 @@ DEFAULTS = {
     # Diktat-Hotkeys ignoriert und die Maus-Seitentaste nicht verschluckt.
     # Wird erst beim Tastendruck abgefragt - kein Polling, kein Thread.
     "pause_in_fullscreen": True,
+    # Enter waehrend der Aufnahme: Aufnahme beenden, verarbeiten, einfuegen und
+    # danach Enter druecken (Absenden ohne extra Stopp-Druck). Das Enter selbst
+    # wird verschluckt, damit die App nicht vorzeitig absendet. Nur Windows.
+    "enter_submits": False,
+    # Escape waehrend der Aufnahme: Aufnahme verwerfen, nichts einfuegen.
+    "escape_cancels": False,
     # Darf die PTT-Kombination NICHT enthalten, sonst feuert beim Toggle erst
     # der Halte-Hook und beide Modi kollidieren.
     "toggle_hotkey": "ctrl+alt+space",  # einmal druecken = Start, nochmal = Stop

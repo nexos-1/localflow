@@ -140,6 +140,124 @@ class _MouseHook(threading.Thread):
             self._tid = None
 
 
+class _KeyHook(threading.Thread):
+    """WH_KEYBOARD_LL-Hook fuer Enter/Escape WAEHREND einer Aufnahme.
+
+    get_state() -> (keys, allowed_mods): welche Tasten gerade uns gehoeren
+    ("enter"/"escape") und welche Modifier dabei gehalten sein duerfen (die
+    des gehaltenen Diktat-Hotkeys, z.B. ctrl+win im Halte-Modus). Ausserhalb
+    einer Aufnahme ist keys leer und JEDE Taste geht unveraendert durch.
+    Eine abgefangene Taste wird komplett verschluckt (Down, Auto-Repeat, Up),
+    damit die Ziel-App weder ein vorzeitiges Enter noch eine "haengende"
+    Taste sieht. Shift/Ctrl/Alt/Win+Enter gehoeren nie uns (Zeilenumbruch
+    in Chat-Apps bleibt Zeilenumbruch).
+    """
+
+    WH_KEYBOARD_LL = 13
+    WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP = 0x0100, 0x0101, 0x0104, 0x0105
+    VK_NAMES = {0x0D: "enter", 0x1B: "escape"}   # Ziffernblock-Enter ist auch 0x0D
+    MOD_VKS = {"shift": (0x10,), "ctrl": (0x11,), "alt": (0x12,), "win": (0x5B, 0x5C)}
+
+    class KBDLLHOOKSTRUCT(ctypes.Structure):
+        _fields_ = [("vkCode", wintypes.DWORD), ("scanCode", wintypes.DWORD),
+                    ("flags", wintypes.DWORD), ("time", wintypes.DWORD),
+                    ("dwExtraInfo", ctypes.c_void_p)]
+
+    def __init__(self, get_state, on_key):
+        """on_key(name) wird im Hook-Thread aufgerufen und muss sofort
+        zurueckkehren (Arbeit in einen eigenen Thread verlagern)."""
+        super().__init__(daemon=True, name="localflow-keyhook")
+        self.get_state = get_state
+        self.on_key = on_key
+        self._swallowed: set[str] = set()
+        self._tid: int | None = None
+        self._ready = threading.Event()
+
+    def decide(self, name: str, is_down: bool, mods_down: set[str]) -> tuple[bool, bool]:
+        """(ausloesen, verschlucken) - pure Logik, testbar.
+
+        DOWN einer schon verschluckten Taste = Auto-Repeat: weiter schlucken,
+        nicht erneut ausloesen (die Aufnahme ist dann schon beendet und keys
+        leer). UP nur schlucken, wenn das DOWN geschluckt wurde."""
+        if not is_down:
+            if name in self._swallowed:
+                self._swallowed.discard(name)
+                return False, True
+            return False, False
+        if name in self._swallowed:
+            return False, True
+        try:
+            keys, allowed_mods = self.get_state()
+        except Exception:  # noqa: BLE001 - im Zweifel nie eine Taste stehlen
+            log.debug("Key-Hook-Status fehlgeschlagen", exc_info=True)
+            return False, False
+        if name not in keys or (mods_down - set(allowed_mods)):
+            return False, False
+        self._swallowed.add(name)
+        return True, True
+
+    def _mods_down(self) -> set[str]:
+        gaks = ctypes.windll.user32.GetAsyncKeyState
+        return {m for m, vks in self.MOD_VKS.items() if any(gaks(vk) & 0x8000 for vk in vks)}
+
+    def run(self):
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_int,
+                                      ctypes.c_size_t, ctypes.c_ssize_t)
+        user32.SetWindowsHookExW.argtypes = [ctypes.c_int, HOOKPROC,
+                                             wintypes.HINSTANCE, wintypes.DWORD]
+        user32.SetWindowsHookExW.restype = ctypes.c_void_p
+        user32.CallNextHookEx.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                                          ctypes.c_size_t, ctypes.c_ssize_t]
+        user32.CallNextHookEx.restype = ctypes.c_ssize_t
+        from .inject import injection_active
+
+        def proc(n_code, w_param, l_param):
+            if n_code >= 0 and not injection_active.is_set():
+                kb = ctypes.cast(l_param, ctypes.POINTER(self.KBDLLHOOKSTRUCT)).contents
+                name = self.VK_NAMES.get(kb.vkCode)
+                if name is not None:
+                    is_down = w_param in (self.WM_KEYDOWN, self.WM_SYSKEYDOWN)
+                    fire, swallow = self.decide(name, is_down,
+                                                self._mods_down() if is_down else set())
+                    if fire:
+                        try:
+                            self.on_key(name)
+                        except Exception:  # noqa: BLE001
+                            log.exception("Key-Hook-Callback fehlgeschlagen")
+                    if swallow:
+                        return 1
+            return user32.CallNextHookEx(None, n_code, w_param, l_param)
+
+        self._proc_ref = HOOKPROC(proc)  # Referenz halten, sonst GC-Crash
+        hook = user32.SetWindowsHookExW(self.WH_KEYBOARD_LL, self._proc_ref, None, 0)
+        if not hook:
+            log.error("Tastatur-Hook (Enter/Escape) konnte nicht installiert werden")
+            self._ready.set()
+            return
+        self._tid = kernel32.GetCurrentThreadId()
+        self._ready.set()
+        msg = wintypes.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            pass
+        user32.UnhookWindowsHookEx(hook)
+
+    def start(self):
+        super().start()
+        self._ready.wait(timeout=3)
+
+    def stop(self):
+        if self._tid:
+            ctypes.windll.user32.PostThreadMessageW(self._tid, 0x0012, 0, 0)  # WM_QUIT
+            self._tid = None
+
+
+def make_key_intercept(get_state, on_key) -> _KeyHook:
+    """Backend-Fabrik: Enter/Escape waehrend der Aufnahme abfangen."""
+    return _KeyHook(get_state, on_key)
+
+
 class PushToTalk:
     """Bindet Keyboard- und/oder Maus-Hook an einen DictationController.
     Combo darf Tastatur und Maus-Seitentasten mischen ("maus5", "ctrl+maus4")."""

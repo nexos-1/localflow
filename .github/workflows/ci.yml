@@ -31,6 +31,7 @@ jobs:
           python tests/test_orphan_guard.py
           python tests/test_fullscreen_gate.py
           python tests/test_couchmic.py
+          python tests/test_key_intercept.py
       # Diese laufen bewusst NICHT hier - sie brauchen eine interaktive
       # Windows-Session (echter Desktop, Fensterfokus, synthetische Eingaben).
       # Auf der Runner-Fensterstation gibt es das nicht. Lokal ausfuehren:
@@ -39,6 +40,7 @@ jobs:
       #   test_clipboard_owner.py     Besitzerfenster + Zwischenablage
       #   test_e2e_paste_local.py     Strg+V in ein echtes Fenster
       #   test_type_text.py           SendInput in ein echtes Fenster
+      #   test_e2e_key_intercept.py   Enter/Escape-Hook gegen ein echtes Fenster
       # Den Vertrag zwischen main.py und den Injektoren deckt dagegen
       # test_darwin_port.py ab, und der laeuft hier - er hat den fehlenden
       # type_text im darwin-Backend gefunden, bevor es jemand auf einem Mac

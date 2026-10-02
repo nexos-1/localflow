@@ -46,6 +46,9 @@ def make_backends() -> SimpleNamespace:
         add_hotkey=_hotkey.add_hotkey,
         remove_hotkey=_hotkey.remove_hotkey,
         capture_combo=_hotkey.capture_combo,
+        # Enter/Escape waehrend der Aufnahme abfangen braucht einen Event-Tap
+        # mit Per-Event-Verschlucken - auf macOS noch nicht gebaut.
+        make_key_intercept=None,
         inject=_inject,
         make_ducker=lambda duck_volume: NoopDucker(duck_volume=duck_volume),
         make_overlay=_make_overlay,

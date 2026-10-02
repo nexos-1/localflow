@@ -52,6 +52,14 @@ Geprueft wird nur beim Tastendruck - kein Hintergrund-Polling.
 drueckt die Taste (nach dem Einfuegen des restlichen Texts). Die
 Ausloese-Woerter sind im Dashboard frei editierbar.
 
+**Enter sendet ab (optional, Windows):** Enter waehrend der Aufnahme beendet
+sie, fuegt den fertigen Text ein und drueckt danach Enter - beim (agentischen)
+Coden spart das den extra Stopp-Druck vor dem Absenden. Das Enter selbst wird
+verschluckt, damit die App nicht vorzeitig eine halbe Nachricht abschickt.
+Shift+Enter bleibt ein Zeilenumbruch. Wurde nichts erkannt, kommt kein Enter.
+Escape waehrend der Aufnahme verwirft sie (eigener Schalter). Beides in den
+Einstellungen unter Hotkeys, Standard aus.
+
 **Smart Spacing:** Steht der Cursor beim Einfuegen direkt an bestehendem
 Text (Satzende, Wortmitte), wird automatisch ein Leerzeichen vorangestellt.
 Markierungen bleiben unangetastet (Ersetzen-Workflow), Terminals sind
@@ -226,6 +234,7 @@ Benchmark auf 20 echten Diktaten (eigene Stimme, Focusrite):
 .venv\Scripts\python.exe tests\test_dictation_modes.py # Diktat-Zustandsmaschine
 .venv\Scripts\python.exe tests\test_second_hotkey.py   # Zweiter Hotkey
 .venv\Scripts\python.exe tests\test_commands.py        # Sprachbefehl-Erkennung
+.venv\Scripts\python.exe tests\test_key_intercept.py   # Enter sendet ab / Escape verwirft
 .venv\Scripts\python.exe tests\test_cleanup_start.py   # Ollama-Doppelstart-Schutz
 .venv\Scripts\python.exe tests\test_levelmeter.py      # adaptiver Pegelmesser
 .venv\Scripts\python.exe tests\test_overlay_model.py   # Pillen-Federn, Tweens, Haken

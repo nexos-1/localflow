@@ -132,6 +132,14 @@ class LocalFlowApp:
         self.ptt = None
         self.ptt2 = None                     # optionaler zweiter Diktat-Hotkey
         self._toggle_hotkey = None
+        # Enter/Escape waehrend der Aufnahme (Optionen enter_submits /
+        # escape_cancels). _intercept wird NUR fuer die Dauer einer Aufnahme
+        # gesetzt und vom Hook-Thread gelesen - ein Attribut-Zugriff, kein
+        # Lock, kein Settings-Lesen im Hook.
+        self._key_hook = None
+        self._key_hook_unsupported_logged = False
+        self._intercept: tuple[frozenset, frozenset] = (frozenset(), frozenset())
+        self._submit_pending = False
         self._fullscreen_logged = False     # 1 Log-Zeile pro Vollbild-Phase, kein Spam
         self.tray: pystray.Icon | None = None
         self._tray_variant = "ready"         # zuletzt gesetzte Icon-Variante
@@ -163,6 +171,7 @@ class LocalFlowApp:
 
         self._install_hotkey()
         self._install_toggle()
+        self._install_key_hook()
         threading.Thread(target=self._overlay_orphan_guard, daemon=True,
                          name="localflow-orphan-guard").start()
 
@@ -246,6 +255,65 @@ class LocalFlowApp:
                                                swallow_mouse=swallow,
                                                gate=self._hotkey_gate)
             self.ptt2.start()
+
+    def _install_key_hook(self):
+        """Enter/Escape-Hook (neu) installieren: nur, wenn eine der beiden
+        Optionen an ist und das Backend es kann (bisher nur Windows)."""
+        if self._key_hook is not None:
+            self._key_hook.stop()
+            self._key_hook = None
+        wanted = self.settings.get("enter_submits") or self.settings.get("escape_cancels")
+        if not wanted:
+            return
+        factory = getattr(self.backends, "make_key_intercept", None)
+        if factory is None:
+            if not self._key_hook_unsupported_logged:
+                self._key_hook_unsupported_logged = True
+                log.info("Enter/Escape waehrend der Aufnahme wird auf diesem System "
+                         "nicht unterstuetzt")
+            return
+        self._key_hook = factory(lambda: self._intercept, self._on_intercept_key)
+        self._key_hook.start()
+        log.info("Tasten waehrend der Aufnahme: %s",
+                 ", ".join(n for n, k in (("Enter sendet ab", "enter_submits"),
+                                          ("Escape verwirft", "escape_cancels"))
+                           if self.settings.get(k)))
+
+    def _intercept_for_recording(self) -> tuple[frozenset, frozenset]:
+        """Welche Tasten diese Aufnahme abfangen soll und welche Modifier
+        dabei gehalten sein duerfen (die der Diktat-Hotkeys: wer ctrl+win
+        haelt und Enter drueckt, meint trotzdem Enter)."""
+        from .controller import normalize_combo
+        keys = set()
+        if self.settings.get("enter_submits"):
+            keys.add("enter")
+        if self.settings.get("escape_cancels"):
+            keys.add("escape")
+        combo_parts = set()
+        for k in ("hotkey", "hotkey2"):
+            combo = (self.settings.get(k) or "").strip()
+            if combo:
+                combo_parts |= set(normalize_combo(combo).split("+"))
+        keys -= combo_parts  # Teil eines Hotkeys: gehoert dem Hotkey
+        mods = combo_parts & {"ctrl", "shift", "alt", "win"}
+        return frozenset(keys), frozenset(mods)
+
+    def _on_intercept_key(self, name: str):
+        """Aus dem Hook-Thread: sofort zurueckkehren, Arbeit im eigenen Thread."""
+        self._intercept = (frozenset(), frozenset())  # pro Aufnahme nur EIN Ausloeser
+        threading.Thread(target=self._handle_intercept_key, args=(name,),
+                         daemon=True, name="localflow-keyhook-action").start()
+
+    def _handle_intercept_key(self, name: str):
+        if not self.controller or not self.recorder.is_recording:
+            return
+        if name == "enter":
+            log.info("Enter waehrend der Aufnahme: beenden und absenden")
+            self._submit_pending = True
+            self.controller.force_stop()
+        elif name == "escape":
+            log.info("Escape waehrend der Aufnahme: verworfen")
+            self.controller.force_cancel()
 
     def _hotkey_gate(self) -> bool:
         """Darf ein Hotkey-Druck gerade etwas ausloesen? False im Spiel /
@@ -374,6 +442,8 @@ class LocalFlowApp:
                     device_override = self.settings.get("couchmic_device") or couchmic.DEFAULT_DEVICE
                     log.info("CouchMic aktiv: Aufnahme vom iPad (%s)", device_override)
             self.recorder.start(device_override)
+            self._submit_pending = False
+            self._intercept = self._intercept_for_recording()
             # Badge in der Pille: "iPad", wenn die Aufnahme ueber CouchMic laeuft.
             self.overlay.set_source("ipad" if device_override else "pc")
             self._arm_max_duration_watchdog(self._record_session)
@@ -405,6 +475,8 @@ class LocalFlowApp:
 
     def _abort_recording(self):
         """Alles zuruecksetzen, ohne zu verarbeiten (Fehler/Cancel)."""
+        self._intercept = (frozenset(), frozenset())
+        self._submit_pending = False
         try:
             self.recorder.stop()
         except Exception:  # noqa: BLE001
@@ -484,6 +556,8 @@ class LocalFlowApp:
         self._abort_recording()
 
     def _on_dictate_stop(self):
+        self._intercept = (frozenset(), frozenset())
+        submit, self._submit_pending = self._submit_pending, False
         self.overlay.set_held(False)
         if not self.recorder.is_recording:
             self._set_overlay_state("hidden")  # ggf. haengende "locked"-Pill aufloesen
@@ -513,7 +587,7 @@ class LocalFlowApp:
         self._set_overlay_if_current(session, "processing")
         threading.Thread(target=self._process,
                          args=(session, audio, duration, app_name, title,
-                               target_hwnd, trim_ctx),
+                               target_hwnd, trim_ctx, submit),
                          daemon=True).start()
 
     def _set_overlay_if_current(self, session: int, state: str):
@@ -555,17 +629,19 @@ class LocalFlowApp:
                  cut_s * 1000)
         return audio[n:]
 
-    def _process(self, session, audio, duration, app_name, title, target_hwnd, trim_ctx):
+    def _process(self, session, audio, duration, app_name, title, target_hwnd, trim_ctx,
+                 submit=False):
         with self._jobs_lock:
             self._jobs += 1
         try:
             self._process_inner(session, audio, duration, app_name, title,
-                                target_hwnd, trim_ctx)
+                                target_hwnd, trim_ctx, submit)
         finally:
             with self._jobs_lock:
                 self._jobs -= 1
 
-    def _process_inner(self, session, audio, duration, app_name, title, target_hwnd, trim_ctx):
+    def _process_inner(self, session, audio, duration, app_name, title, target_hwnd, trim_ctx,
+                       submit=False):
         inj = self.backends.inject
         try:
             if not self.models_ready.wait(timeout=120):
@@ -600,11 +676,14 @@ class LocalFlowApp:
             # z.B. Enter zum Absenden) - aber NUR, wenn das Paste wirklich im
             # Zielfenster gelandet ist. Bei clipboard_only/failed waere ein
             # Enter/Delete im gerade fokussierten (falschen) Fenster destruktiv.
-            if result.commands and status == inj.PASTE_OK:
-                inj.press_keys(result.commands, target_hwnd=target_hwnd)
-                log.info("Sprachbefehl(e) ausgefuehrt: %s", " ".join(result.commands))
-            elif result.commands:
-                log.info("Sprachbefehle unterdrueckt (Paste-Status: %s)", status)
+            # submit: Aufnahme wurde per Enter beendet -> danach Enter druecken.
+            from .commands import with_submit
+            keys = with_submit(result.commands, submit)
+            if keys and status == inj.PASTE_OK:
+                inj.press_keys(keys, target_hwnd=target_hwnd)
+                log.info("Taste(n) nach dem Einfuegen: %s", " ".join(keys))
+            elif keys:
+                log.info("Tasten nach dem Einfuegen unterdrueckt (Paste-Status: %s)", status)
             if result.final_text:
                 self.pipeline.record_history(result, app=app_name, window_title=title,
                                              duration_s=duration,

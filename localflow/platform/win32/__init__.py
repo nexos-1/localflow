@@ -28,6 +28,7 @@ def make_backends() -> SimpleNamespace:
         add_hotkey=_hotkey.add_hotkey,
         remove_hotkey=_hotkey.remove_hotkey,
         capture_combo=_hotkey.capture_combo,
+        make_key_intercept=_hotkey.make_key_intercept,
         # Injector (Modul erfuellt das Protocol: Konstanten + Funktionen)
         inject=_inject,
         # Ducker

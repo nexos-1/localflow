@@ -68,3 +68,13 @@ def extract_trailing_commands(text: str, commands) -> tuple[str, list[str]]:
             break
     keys.reverse()  # vom Ende abgeschnitten -> zurueck in Sprech-Reihenfolge
     return text, keys
+
+
+def with_submit(keys: list[str], submit: bool) -> list[str]:
+    """Tasten nach dem Einfuegen, plus Enter, wenn die Aufnahme per Enter
+    beendet wurde. Endet das Diktat schon auf "press enter", bleibt es bei
+    EINEM Enter (sonst wuerde z.B. ein Chat zweimal absenden)."""
+    keys = list(keys)
+    if submit and (not keys or keys[-1] != "enter"):
+        keys.append("enter")
+    return keys

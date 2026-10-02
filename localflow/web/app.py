@@ -16,6 +16,7 @@ EDITABLE_SETTINGS = [
     "voice_commands_enabled", "voice_commands", "live_preview", "glass_pill",
     "overlay_font", "overlay_font_size", "overlay_theme", "smart_spacing",
     "type_max_chars", "overlay_position", "overlay_margin",
+    "enter_submits", "escape_cancels",
 ]
 
 
@@ -25,7 +26,7 @@ EDITABLE_SETTINGS = [
 # ueberlebte via config.json sogar App-Neustarts.
 _BOOL_SETTINGS = {"ai_cleanup", "play_sounds", "duck_audio", "swallow_mouse_hotkey",
                   "pause_in_fullscreen", "voice_commands_enabled", "live_preview",
-                  "glass_pill", "smart_spacing"}
+                  "glass_pill", "smart_spacing", "enter_submits", "escape_cancels"}
 _INT_SETTINGS = {"beam_size", "cleanup_min_words", "tail_ms", "overlay_font_size",
                  "max_duration_s", "type_max_chars", "overlay_margin"}
 _FLOAT_SETTINGS = {"min_duration_s", "paste_restore_delay", "cleanup_timeout_s",
@@ -93,6 +94,11 @@ def _apply_runtime_changes(main_app, settings, changed: set):
             main_app._install_hotkey()  # stoppt die alten Hooks selbst
         except Exception:
             log.exception("Hotkey-Neustart fehlgeschlagen")
+    if {"enter_submits", "escape_cancels"} & changed:
+        try:
+            main_app._install_key_hook()
+        except Exception:
+            log.exception("Enter/Escape-Hook-Neustart fehlgeschlagen")
     if "toggle_hotkey" in changed:
         try:
             main_app._install_toggle()
