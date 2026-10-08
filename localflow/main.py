@@ -768,6 +768,10 @@ class LocalFlowApp:
                 self.ducker.restore()
                 time.sleep(0.7)  # Restore-Fade (bis ~0.3s get + 0.12s Fade) abschliessen
                 self.recorder.close()
+                # Eigenen llama-server beenden (Ollama-Cleaner hat kein close).
+                close_cleaner = getattr(self.pipeline.cleaner, "close", None)
+                if close_cleaner:
+                    close_cleaner()
             except Exception:  # noqa: BLE001
                 log.exception("Shutdown-Cleanup fehlgeschlagen")
             icon.stop()

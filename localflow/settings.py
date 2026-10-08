@@ -50,6 +50,18 @@ DEFAULTS = {
     "allowed_languages": ["de", "en"],  # bei auto: Detektion auf diese beschraenken
     "whisper_model": "large-v3-turbo",
     "beam_size": 1,                 # Benchmark auf echter Stimme: beam1 > beam5
+    # Cleanup-Engine: "llamacpp" = eigener llama-server als Kindprozess von
+    # LocalFlow (kein Ollama-Autostart noetig) | "ollama". Fehlen Server oder
+    # Modell im Datenordner bzw. startet der Server nicht, uebernimmt Ollama.
+    "cleanup_engine": "llamacpp",
+    # Pfade relativ zum Datenordner (absolut geht auch). Leer = Standard:
+    # data/llamacpp/bin/llama-server.exe und
+    # data/llamacpp/models/gemma-3-4b-it-Q4_K_M.gguf (ggml-org, Rev. d097622).
+    "llamacpp_server": "",
+    "llamacpp_model": "",
+    # Nach so vielen Sekunden Leerlauf entlaedt llama-server das Modell aus
+    # VRAM/RAM; das naechste Diktat weckt es (~2s, parallel zur Aufnahme).
+    "llamacpp_idle_s": 7200,
     "ollama_model": "gemma3:4b",
     "ollama_url": "http://127.0.0.1:11434",  # 127.0.0.1 statt localhost: spart ~2s IPv6-Fallback
     "ai_cleanup": True,

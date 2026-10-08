@@ -87,8 +87,15 @@ dictionary and dictation history. German README: [README.de.md](README.de.md)
 - NVIDIA GPU recommended (CUDA) - falls back to CPU automatically. Note:
   the pinned requirements include the CUDA runtime wheels (~1 GB); CPU-only
   users can remove the `nvidia-*` lines.
-- [Ollama](https://ollama.com/download) for AI cleanup (optional - without
-  it you get the raw transcript) with a small model, e.g. `ollama pull gemma3:4b`
+- AI cleanup (optional - without it you get the raw transcript), either:
+  - **llama.cpp** (preferred): put `llama-server.exe` plus its DLLs into
+    `data/llamacpp/bin/` and a GGUF model into `data/llamacpp/models/`
+    (default `gemma-3-4b-it-Q4_K_M.gguf` from `ggml-org/gemma-3-4b-it-GGUF`).
+    LocalFlow starts and stops the server itself, no autostart needed; the
+    model is unloaded after `llamacpp_idle_s` of idle time.
+  - [Ollama](https://ollama.com/download) with a small model, e.g.
+    `ollama pull gemma3:4b`. Used automatically when llama.cpp is missing or
+    fails to start (or set `cleanup_engine` to `ollama`).
 
 ## Install (Windows)
 
@@ -231,6 +238,7 @@ Run individual suites from `tests/` with the venv Python, e.g.:
 .venv\Scripts\python.exe tests\test_commands.py         # voice command parsing
 .venv\Scripts\python.exe tests\test_key_intercept.py    # Enter to submit / Escape to discard
 .venv\Scripts\python.exe tests\test_cleanup_start.py    # Ollama no-double-spawn
+.venv\Scripts\python.exe tests\test_llamacpp_engine.py  # llama.cpp engine, fallback, no orphans
 .venv\Scripts\python.exe tests\test_levelmeter.py       # adaptive level meter
 .venv\Scripts\python.exe tests\test_overlay_model.py    # pill springs, tweens, check mark
 .venv\Scripts\python.exe tests\test_orb_geometry.py     # thinking-orb port vs. golden vectors
