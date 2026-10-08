@@ -10,7 +10,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-from .cleanup import Cleaner
+from .cleanup import Cleaner, LlamaCppCleaner, make_cleaner
 from .db import Database
 from .settings import Settings
 from .stt_factory import make_transcriber
@@ -38,7 +38,7 @@ class Pipeline:
         # Engine haengt von der Plattform ab (stt_factory): faster-whisper
         # auf Windows (CUDA/CPU), mlx-whisper (Metal) auf Apple Silicon.
         self.transcriber = None
-        self.cleaner: Cleaner | None = None
+        self.cleaner: Cleaner | LlamaCppCleaner | None = None
         # Serialisiert die GPU-Inferenz: zwei parallele Diktate wuerden sonst
         # gleichzeitig auf der GPU laufen (kann selbst erst das CUDA-OOM
         # ausloesen) und beide gleichzeitig ein CPU-Modell nachladen.
@@ -47,17 +47,14 @@ class Pipeline:
     def load(self):
         """Modelle laden (blockiert; beim App-Start im Hintergrund aufrufen).
 
-        Der Ollama-Warmup laeuft bewusst in einem EIGENEN Thread: er darf
-        nach einem Systemstart bis zu 90s auf Ollamas Tray-App warten
+        Der Cleanup-Warmup laeuft bewusst in einem EIGENEN Thread: er darf
+        den llama-server starten bzw. (Ollama-Fallback) nach einem
+        Systemstart bis zu 90s auf Ollamas Tray-App warten
         (cleanup.ensure_running), und solange darf das Diktieren nicht
         blockiert sein - STT ist davon unabhaengig. Bis das Cleanup steht,
         liefert die Pipeline Rohtext."""
         self.transcriber = make_transcriber(self.settings.get("whisper_model"))
-        self.cleaner = Cleaner(
-            model=self.settings.get("ollama_model"),
-            base_url=self.settings.get("ollama_url"),
-            timeout=self.settings.get("cleanup_timeout_s"),
-        )
+        self.cleaner = make_cleaner(self.settings)
         threading.Thread(target=self.cleaner.warmup, daemon=True,
                          name="localflow-cleanup-warmup").start()
 

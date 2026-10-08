@@ -133,7 +133,7 @@ for booted, expected in ((True, 2.5), (False, 1.5)):
     assert waited == [expected], (booted, waited)
 print("14. Boot-Erkennung waehlt die lange Wartezeit OK")
 
-# 15. Der Ollama-Warmup darf den App-Start (models_ready) NICHT blockieren
+# 15. Der Cleanup-Warmup (llama.cpp oder Ollama) darf den App-Start (models_ready) NICHT blockieren
 import localflow.pipeline as pl  # noqa: E402
 
 
@@ -146,8 +146,8 @@ class _Settings:
 
 slow_warmup = threading.Event()
 with mock.patch.object(pl, "make_transcriber", lambda *a, **k: object()), \
-        mock.patch.object(pl, "Cleaner") as FakeCleaner:
-    FakeCleaner.return_value.warmup = lambda: slow_warmup.wait(5)
+        mock.patch.object(pl, "make_cleaner") as fake_make:
+    fake_make.return_value.warmup = lambda: slow_warmup.wait(5)
     p = pl.Pipeline(_Settings(), db=None)
     t0 = time.perf_counter()
     p.load()

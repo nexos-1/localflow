@@ -3,6 +3,18 @@
 ## Unreleased
 
 ### Added
+- **llama.cpp als Cleanup-Engine** (Standard, `cleanup_engine` in der Config):
+  LocalFlow startet einen eigenen `llama-server` aus `data/llamacpp/` als
+  Kindprozess auf einem freien Loopback-Port und beendet ihn beim Quit; ein
+  Windows-Job-Objekt nimmt ihn auch bei Absturz oder Taskmanager-Kill mit.
+  Damit braucht das Cleanup weder Ollamas Tray-App noch deren Autostart.
+  Nach `llamacpp_idle_s` Leerlauf (Standard 2 h) entlaedt der Server das
+  Modell aus VRAM/RAM, das naechste Diktat weckt ihn (~2 s, parallel zur
+  Aufnahme). Modell: Gemma 3 4B Q4_K_M von ggml-org (Ollamas Modell-Blobs
+  laedt upstream llama.cpp nicht). Fehlen Server oder Modell oder startet der
+  Server nicht, uebernimmt Ollama wie bisher. Gemessen mit 8 echten Diktaten
+  durch die volle Pipeline: Cleanup-Median 350 ms (Ollama: 367 ms). Tests:
+  `tests/test_llamacpp_engine.py`.
 - **Enter beendet die Aufnahme und sendet ab** (Windows, Option im Dashboard
   unter Hotkeys, Standard aus): Enter waehrend einer Aufnahme stoppt sie,
   der fertige Text wird eingefuegt und danach Enter gedrueckt - kein extra
@@ -35,6 +47,14 @@
   `config.json` entfernt.
 
 ### Fixed
+- **"Äh"/"Ähm" bleiben nicht mehr stehen**: Gemma 3 4B liess deutsche
+  Fuellwoerter trotz Prompt-Regel fast immer stehen (9 von 9 in Testsaetzen,
+  9 von 10 in echten Diktaten; ein zusaetzliches Few-Shot-Beispiel half kaum).
+  Das Cleanup entfernt "äh", "ähm" und "öhm" jetzt deterministisch vor und
+  nach dem Modell und schreibt am Satzanfang danach gross; Woerter wie
+  "Ähnlich" bleiben unangetastet. Danach 0 von 19 uebrig, Aehnlichkeit zu
+  Wisprs Formatierung auf 20 echten Aufnahmen unveraendert (Median 0,869).
+  Tests: `tests/test_fillers.py`.
 - **macOS: Absturz beim Start (SIGABRT in HIToolbox, "Abort trap: 6")**
   direkt nach "Diktat-Hotkey aktiv (darwin)", reproduzierbar aus Terminal,
   LaunchAgent und App-Bundle. Ursache: pynputs Tastatur-Listener liest in
