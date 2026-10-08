@@ -14,10 +14,13 @@ dieser Test so wertvoll. Erwartung: Es kann haken. Bitte alles notieren.
 - **Apple-Silicon-Mac** (M1 oder neuer). Auf Intel-Macs ist die
   Spracherkennung zu langsam - bitte nicht auf Intel testen.
 - Python 3.11 oder neuer: `python3 --version` (sonst: `brew install python`)
-- ~4 GB freier Speicher (Spracherkennungs-Modell ~1,5 GB + Umgebung)
-- Optional fuer die Text-Nachbearbeitung (Zeichensetzung, Fuellwoerter):
-  [Ollama](https://ollama.com/download) installieren - ohne Ollama kommt
-  der rohe Transkript-Text, das ist fuer den Test auch okay.
+- ~7 GB freier Speicher (Spracherkennungs-Modell ~1,5 GB, Cleanup-Modell
+  ~2,5 GB + Umgebung)
+- Die Text-Nachbearbeitung (Zeichensetzung, Fuellwoerter) richtet
+  `install.sh` selbst ein (llama.cpp mit Metal + Gemma 3 4B). Bitte im
+  Bericht angeben, wie lange ein Diktat bis zum eingefuegten Text dauert -
+  echte Metal-Latenz laesst sich nur auf deinem Mac messen, nicht in der CI.
+  Steht im Log `GPU zu langsam` oder `auf der CPU neu`, bitte mitschicken.
 - Das GitHub-Repo ist privat: entweder wurdest du eingeladen
   (`git clone https://github.com/nexos-1/localflow.git`) oder du hast
   ein ZIP bekommen - dann einfach entpacken.

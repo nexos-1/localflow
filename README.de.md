@@ -5,7 +5,8 @@
 
 Vollstaendig lokaler Wispr-Flow-Ersatz fuer Windows. Hotkey halten, sprechen,
 loslassen - der formatierte Text landet in der aktiven App. Kein Cloud-Dienst,
-kein Abo: Whisper (STT) und Ollama (AI-Cleanup) laufen auf der eigenen Maschine.
+kein Abo: Whisper (STT) und ein lokales LLM (AI-Cleanup ueber llama.cpp,
+Ollama als Fallback) laufen auf der eigenen Maschine.
 
 Eine **kostenlose Open-Source-Alternative zu [Wispr Flow](https://wisprflow.ai)** -
 als Drop-in-Ersatz gebaut, inklusive Ein-Klick-Import von Wispr-Woerterbuch
@@ -13,8 +14,9 @@ und Diktat-History. English README: [README.md](README.md)
 
 > **Windows ist erstklassig unterstuetzt, macOS experimentell**: Ein
 > Darwin-Backend existiert (Paste, Hotkeys, Sprachbefehle, Sounds,
-> Metal-STT-Engine, AppKit-Overlay-Pill) und laeuft in der CI auf echten
-> macOS-Runnern - interaktiv auf einem Mac wurde die App aber noch nie
+> Metal-STT-Engine, AppKit-Overlay-Pill, llama.cpp-Cleanup auf Metal) und
+> die CI faehrt auf echten Apple-Silicon-Runnern einen End-to-End-Diktattest -
+> interaktiv auf einem Mac (Mikrofon, Hotkeys) wurde die App aber noch nie
 > benutzt. Status und Plan in [PORTING.md](PORTING.md).
 
 ## Bedienung
@@ -122,12 +124,24 @@ Diktieren zu langsam ist (gemessen ~20 s fuer 16 s Audio). Siehe PORTING.md.
 Test auf echter Hardware: Anleitung in
 [docs/TESTING-MACOS.md](docs/TESTING-MACOS.md).
 
+**AI-Cleanup (beide Systeme)**: Die Installer richten es automatisch ein -
+`install-llama.ps1` (Windows, von `install.ps1` aufgerufen) bzw.
+`install.sh` (macOS) laden llama.cpp b10991 (Windows: Vulkan-Build, ~30 MB,
+jede GPU oder CPU; macOS: Metal) und `gemma-3-4b-it-Q4_K_M.gguf` (~2,5 GB,
+ggml-org) nach `data/llamacpp/`, beide gepinnt und per SHA-256 geprueft.
+LocalFlow startet und beendet den Server selbst - kein Hintergrunddienst,
+kein Autostart-Eintrag. Einstellungen: `cleanup_engine` (`llamacpp`/`ollama`),
+`llamacpp_idle_s` (Modell nach Leerlauf entladen, Standard 2 h),
+`llamacpp_gpu_layers` (0 = nur CPU). [Ollama](https://ollama.com/download)
+(`ollama pull gemma3:4b`) springt nur ein, wenn llama.cpp fehlt oder nicht
+startet. Ohne beides wird der Rohtext eingefuegt.
+
 ## Deinstallation
 
 **Windows**: **`uninstall.bat` doppelklicken** - beendet die App, entfernt
 Autostart-Eintrag und Startmenue-Verknuepfung und bietet an: Whisper-
 Modell-Cache (~1,6 GB), Ollama-Cleanup-Modell und zum Schluss den ganzen
-Ordner loeschen. Die Diktat-History (`data/localflow.sqlite`) wird nur
+Ordner loeschen (inklusive llama.cpp-Engine und Modell in `data/llamacpp/`). Die Diktat-History (`data/localflow.sqlite`) wird nur
 nach ausdruecklicher Bestaetigung geloescht.
 
 **macOS**: `bash uninstall.sh` (gleicher Ablauf; entfernt auch den
@@ -143,9 +157,9 @@ LaunchAgent).
 ```
 
 Beim allerersten Start laedt Whisper `large-v3-turbo` (~1,6 GB) herunter;
-danach kommt das Modell in wenigen Sekunden aus dem Cache. Ollama wird beim
-Start automatisch mitgestartet, falls es nicht laeuft (ohne Doppelstart,
-wenn es schon laeuft).
+danach kommt das Modell in wenigen Sekunden aus dem Cache. Den
+llama-server fuer das Cleanup startet LocalFlow selbst als Kindprozess
+(Start ~2 s unter Windows); nur wenn das scheitert, wird Ollama genutzt.
 
 Das Mikrofon wird NUR waehrend einer Aufnahme geoeffnet (Windows-Anzeige
 "Mikrofon wird verwendet" leuchtet nur beim Diktieren; Stream-Open kostet
@@ -175,7 +189,8 @@ localflow/
                  stt_mlx.py: mlx-whisper (Metal, Apple Silicon),
                  stt_factory.py waehlt die Engine, stt_quality.py teilt
                  die Qualitaets-Guards
-  cleanup.py     Ollama gemma3:4b, Prompt kalibriert auf Light-Formatting
+  cleanup.py     Cleanup-Engines: eigener llama-server (LlamaCppCleaner) mit
+                 Ollama-Fallback, Prompt kalibriert auf Light-Formatting
   commands.py    Sprachbefehle am Diktat-Ende ("press enter" -> Taste)
   pipeline.py    STT -> Sprachbefehle -> Cleanup -> Woerterbuch/Snippets -> History
   inject.py      Clipboard setzen -> Ctrl+V -> Clipboard restaurieren,
@@ -206,7 +221,9 @@ Benchmark auf 20 echten Diktaten (eigene Stimme, Focusrite):
 - End-to-End (STT + Cleanup) median **~800 ms**; Wispr-Cloud-Referenz: Ø 930 ms.
 - Whisper beam_size=1 schlaegt beam_size=5 auf dieser Stimme (WER 3,0% vs
   6,1% median) und ist schneller - deshalb Default 1.
-- AI-Cleanup (gemma3:4b): 0,95 Aehnlichkeit zur Wispr-Formatierung, ~465 ms.
+- AI-Cleanup (Gemma 3 4B auf dem eigenen llama-server, CUDA oder Vulkan):
+  ~350 ms median auf 8 echten Diktaten durch die volle Pipeline (Ollama auf
+  denselben Diktaten: ~367 ms); 0,95 Aehnlichkeit zur Wispr-Formatierung.
 - Live-Vorschau: inkrementelle Re-Transkription alle ~0,4 s waehrend der Aufnahme.
 
 ## Robustheit (eingebaut und getestet)
@@ -221,8 +238,14 @@ Benchmark auf 20 echten Diktaten (eigene Stimme, Focusrite):
   Restore) sind vom Zwischenablage-Verlauf (Win+V) und Cloud-Sync
   ausgenommen; ein vorher leeres Clipboard ist nach dem Paste wieder leer.
 - Nachlauf 150 ms (`tail_ms`): die letzte Silbe wird nicht abgeschnitten.
-- Ollama-Healthcheck mit Autostart (`ollama serve`) und
-  Doppelstart-Schutz; Cleanup-Ausfall degradiert zu Rohtext statt zu blockieren.
+- Eigener llama-server als Kindprozess: stirbt mit der App (Windows-Job-
+  Objekt), verwaiste Server werden auf macOS beim Start aufgeraeumt,
+  zufaelliger API-Key pro Lauf (llama-server erlaubt sonst CORS fuer alle
+  Origins). Bei GPU-Fehler oder zu langsamer GPU automatisch Neustart auf
+  der CPU. Cleanup-Ausfall degradiert zu Rohtext statt zu blockieren;
+  Ollama-Fallback mit Doppelstart-Schutz.
+- "Äh"/"Ähm" werden deterministisch entfernt (das 4B-Modell liess sie trotz
+  Prompt-Regel stehen).
 - Single-Instance-Mutex (ein zweiter Start oeffnet einfach das Dashboard).
 - Watchdog stoppt vergessenes Freisprechen nach `max_duration_s` (Default 300 s).
 - Dashboard zeigt einen klaren Banner, wenn die App nicht laeuft, und
@@ -239,6 +262,8 @@ Benchmark auf 20 echten Diktaten (eigene Stimme, Focusrite):
 .venv\Scripts\python.exe tests\test_commands.py        # Sprachbefehl-Erkennung
 .venv\Scripts\python.exe tests\test_key_intercept.py   # Enter sendet ab / Escape verwirft
 .venv\Scripts\python.exe tests\test_cleanup_start.py   # Ollama-Doppelstart-Schutz
+.venv\Scripts\python.exe tests\test_llamacpp_engine.py # llama.cpp-Engine, GPU->CPU-Fallback, keine Waisen
+.venv\Scripts\python.exe tests\test_fillers.py         # deterministisches Entfernen von äh/ähm
 .venv\Scripts\python.exe tests\test_levelmeter.py      # adaptiver Pegelmesser
 .venv\Scripts\python.exe tests\test_overlay_model.py   # Pillen-Federn, Tweens, Haken
 .venv\Scripts\python.exe tests\test_orb_geometry.py    # Thinking-Orb-Port gegen Golden-Vektoren
@@ -251,6 +276,12 @@ Benchmark auf 20 echten Diktaten (eigene Stimme, Focusrite):
 
 Die hardwarefreien Suiten laufen zusaetzlich in der CI auf Windows und
 echten macOS-Runnern ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
+Zwei Jobs gehen weiter: `windows-llama` fuehrt `install-llama.ps1` aus und
+testet gegen einen echten llama-server, `macos-e2e` fuehrt `install.sh`
+aus, startet die App und schickt mit `say` gesprochene Diktate durch die
+volle Pipeline (`tests/test_e2e_mac_ci.py`). Die Latenz auf den Mac-Runnern
+ist nicht aussagekraeftig: deren virtualisierte GPU ist viel zu langsam,
+LocalFlow wechselt dort auf die CPU.
 Die `test_e2e_*`-Tests tippen und pasten in echte Fenster - vor dem
 Ausfuehren lesen. `tests\extract_real_audio.py` baut einen persoenlichen
 STT-Benchmark aus einer lokalen Wispr-DB; die extrahierten WAVs bleiben auf

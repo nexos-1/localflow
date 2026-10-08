@@ -5,8 +5,8 @@
 
 **Fully local voice dictation for Windows.** Hold a hotkey, speak, release -
 your words appear as polished text in whatever app has focus. No cloud, no
-subscription: Whisper (speech-to-text) and Ollama (AI cleanup) run entirely
-on your own machine.
+subscription: Whisper (speech-to-text) and a local LLM (AI cleanup via
+llama.cpp, with Ollama as fallback) run entirely on your own machine.
 
 A **free, open-source alternative to [Wispr Flow](https://wisprflow.ai)** -
 built as a drop-in replacement, including one-click import of your Wispr
@@ -14,8 +14,9 @@ dictionary and dictation history. German README: [README.de.md](README.de.md)
 
 > **Windows is first-class. macOS is experimental**: a Darwin backend exists
 > (paste, hotkeys, voice commands, sounds, Metal STT engine, AppKit overlay
-> pill) and is smoke-tested in CI on real macOS runners - but the app has
-> never been used interactively on a Mac. See [PORTING.md](PORTING.md)
+> pill, llama.cpp cleanup on Metal) and runs an end-to-end dictation test
+> in CI on real Apple Silicon runners - but the app has never been used
+> interactively on a Mac (microphone, hotkeys). See [PORTING.md](PORTING.md)
 > for status and plan.
 
 ## Features
@@ -40,7 +41,11 @@ dictionary and dictation history. German README: [README.de.md](README.de.md)
   "press escape" or "press delete" and LocalFlow presses the key instead of
   typing the phrase. Trigger words are editable in the dashboard.
 - **AI cleanup** (local LLM): punctuation, casing, filler removal,
-  numbers-as-digits - meaning-preserving, calibrated on real dictations
+  numbers-as-digits - meaning-preserving, calibrated on real dictations.
+  Runs on LocalFlow's own `llama-server` (llama.cpp, Gemma 3 4B): started
+  and stopped by the app itself, unloaded after idle, protected by a
+  per-run API key; switches itself to CPU if the GPU fails or is too slow.
+  German "äh/ähm" fillers are removed deterministically.
 - **Multilingual**: language auto-detected per dictation (e.g. German/English
   mixed), restricted to your configured languages
 - **System audio auto-mute**: other apps (YouTube, Spotify) fade to silence
@@ -73,13 +78,13 @@ dictionary and dictation history. German README: [README.de.md](README.de.md)
   prompt-echo filtering, language restriction
 - **Privacy**: microphone stream only open while recording; logs contain no
   dictation plaintext; the core loop makes zero network calls beyond
-  localhost (Ollama on 127.0.0.1)
+  localhost (own llama-server or Ollama on 127.0.0.1)
 - **Hardened local API**: Host allowlist (DNS-rebinding defense) + custom-header
   CSRF protection on the dashboard; powerful test/debug routes only exist with
   `LOCALFLOW_DEBUG=1`
 - Single-instance lock (a second start simply opens the dashboard),
-  crash-safe volume restore, autostart with Windows, Ollama health check
-  with double-spawn protection
+  crash-safe volume restore, autostart with Windows; the cleanup server dies
+  with the app (Windows job object) and orphans are cleaned up on macOS
 
 ## Requirements
 
@@ -87,15 +92,17 @@ dictionary and dictation history. German README: [README.de.md](README.de.md)
 - NVIDIA GPU recommended (CUDA) - falls back to CPU automatically. Note:
   the pinned requirements include the CUDA runtime wheels (~1 GB); CPU-only
   users can remove the `nvidia-*` lines.
-- AI cleanup (optional - without it you get the raw transcript), either:
-  - **llama.cpp** (preferred): put `llama-server.exe` plus its DLLs into
-    `data/llamacpp/bin/` and a GGUF model into `data/llamacpp/models/`
-    (default `gemma-3-4b-it-Q4_K_M.gguf` from `ggml-org/gemma-3-4b-it-GGUF`).
-    LocalFlow starts and stops the server itself, no autostart needed; the
-    model is unloaded after `llamacpp_idle_s` of idle time.
-  - [Ollama](https://ollama.com/download) with a small model, e.g.
-    `ollama pull gemma3:4b`. Used automatically when llama.cpp is missing or
-    fails to start (or set `cleanup_engine` to `ollama`).
+- AI cleanup (optional - without it you get the raw transcript). The
+  installers set it up automatically: `install-llama.ps1` (Windows, called
+  by `install.ps1`) and `install.sh` (macOS) download llama.cpp b10991
+  (Windows: Vulkan build, ~30 MB, any GPU or CPU; macOS: Metal) and
+  `gemma-3-4b-it-Q4_K_M.gguf` (~2.5 GB, ggml-org) into `data/llamacpp/`,
+  both pinned and SHA-256-verified. LocalFlow starts and stops the server
+  itself - no background service, no autostart entry. Settings:
+  `cleanup_engine` (`llamacpp`/`ollama`), `llamacpp_idle_s` (unload after
+  idle, default 2 h), `llamacpp_gpu_layers` (0 = CPU only).
+  [Ollama](https://ollama.com/download) (`ollama pull gemma3:4b`) is used
+  only as a fallback when llama.cpp is missing or fails to start.
 
 ## Install (Windows)
 
@@ -176,7 +183,8 @@ key press - no background polling.
 **Windows**: double-click **`uninstall.bat`**. It stops the app, removes
 the autostart entry and Start Menu shortcut, and offers to delete the
 Whisper model cache (~1.6 GB), the Ollama cleanup model and finally the
-whole folder. Your dictation history (`data/localflow.sqlite`) is only
+whole folder (including the llama.cpp engine and model in
+`data/llamacpp/`). Your dictation history (`data/localflow.sqlite`) is only
 deleted if you explicitly confirm it.
 
 **macOS**: `bash uninstall.sh` (same flow; also removes the LaunchAgent).
@@ -195,8 +203,9 @@ dictated text itself.
 - End-to-end (speech end to pasted text): **~0.8 s median**
 - STT: faster-whisper `large-v3-turbo`, CUDA float16, beam 1
   (3.0% median WER on the author's real dictations)
-- Cleanup: `gemma3:4b` via Ollama, ~465 ms, 0.95 similarity to the
-  commercial reference formatting
+- Cleanup: Gemma 3 4B on the own llama-server (CUDA or Vulkan), ~350 ms
+  median on 8 real dictations through the full pipeline (Ollama on the same
+  set: ~367 ms); 0.95 similarity to the commercial reference formatting
 - Live preview: incremental re-transcription every ~0.4 s while recording
 
 ## Architecture
@@ -210,7 +219,8 @@ localflow/
   stt.py         faster-whisper (CUDA/CPU); stt_mlx.py: mlx-whisper (Metal,
                  Apple Silicon); stt_factory.py picks the platform engine,
                  stt_quality.py holds the shared quality guards
-  cleanup.py     Ollama prompt calibrated for light-touch formatting
+  cleanup.py     cleanup engines: own llama-server (LlamaCppCleaner) with
+                 Ollama fallback, prompt calibrated for light-touch formatting
   commands.py    trailing voice commands ("press enter" -> key press)
   pipeline.py    STT -> voice commands -> cleanup -> dictionary -> history
   inject.py      clipboard paste with multi-format preservation, key sender
@@ -238,7 +248,8 @@ Run individual suites from `tests/` with the venv Python, e.g.:
 .venv\Scripts\python.exe tests\test_commands.py         # voice command parsing
 .venv\Scripts\python.exe tests\test_key_intercept.py    # Enter to submit / Escape to discard
 .venv\Scripts\python.exe tests\test_cleanup_start.py    # Ollama no-double-spawn
-.venv\Scripts\python.exe tests\test_llamacpp_engine.py  # llama.cpp engine, fallback, no orphans
+.venv\Scripts\python.exe tests\test_llamacpp_engine.py  # llama.cpp engine, GPU->CPU fallback, no orphans
+.venv\Scripts\python.exe tests\test_fillers.py          # deterministic äh/ähm removal
 .venv\Scripts\python.exe tests\test_levelmeter.py       # adaptive level meter
 .venv\Scripts\python.exe tests\test_overlay_model.py    # pill springs, tweens, check mark
 .venv\Scripts\python.exe tests\test_orb_geometry.py     # thinking-orb port vs. golden vectors
@@ -248,7 +259,12 @@ Run individual suites from `tests/` with the venv Python, e.g.:
 ```
 
 The hardware-free suites also run in CI on Windows and on real macOS
-runners ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
+runners ([.github/workflows/ci.yml](.github/workflows/ci.yml)). Two CI jobs
+go further: `windows-llama` runs `install-llama.ps1` and the engine tests
+against a real llama-server, and `macos-e2e` runs `install.sh`, starts the
+app and pushes spoken dictations (macOS `say`) through the full pipeline
+(`tests/test_e2e_mac_ci.py`). CI latency on macOS is not representative:
+the runners' virtualized GPU is far too slow, so LocalFlow falls back to CPU.
 
 `tests/test_e2e_*.py` drive the running app end-to-end (they type and paste
 into real windows - read them before running). `tests/extract_real_audio.py`

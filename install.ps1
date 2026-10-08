@@ -3,7 +3,8 @@
 #
 # Erstellt das venv, installiert Dependencies, legt die Start-Menue-
 # Verknuepfung an und startet die App. Whisper-Modell (~1,6 GB) laedt beim
-# ersten Start automatisch. Ollama + Modell werden geprueft.
+# ersten Start automatisch. Die Cleanup-Engine (llama.cpp + Gemma 3 4B,
+# ~2,5 GB) laedt install-llama.ps1; Ollama dient nur noch als Fallback.
 
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
@@ -33,11 +34,17 @@ if (-not (Test-Path "$root\.venv")) {
 Write-Host "Installiere Dependencies..."
 & "$root\.venv\Scripts\python.exe" -m pip install --quiet -r "$root\requirements.txt"
 
-# 3. Ollama pruefen (AI-Cleanup; App laeuft auch ohne, dann Rohtext)
+# 3. AI-Cleanup: eigener llama-server (llama.cpp) + Gemma 3 4B, siehe
+#    install-llama.ps1. Ollama ist nur noch Fallback, falls das scheitert.
+#    (App laeuft auch ganz ohne Cleanup, dann Rohtext.)
+& powershell -NoProfile -ExecutionPolicy Bypass -File "$root\install-llama.ps1"
+$llamaOk = ($LASTEXITCODE -eq 0)
 $ollama = Get-Command ollama -ErrorAction SilentlyContinue
-if (-not $ollama) {
-    Write-Host "Hinweis: Ollama nicht gefunden - AI-Cleanup deaktiviert." -ForegroundColor Yellow
-    Write-Host "         Installieren: https://ollama.com/download, dann: ollama pull gemma3:4b"
+if ($llamaOk) {
+    # nichts weiter noetig
+} elseif (-not $ollama) {
+    Write-Host "Hinweis: weder llama.cpp noch Ollama verfuegbar - AI-Cleanup deaktiviert." -ForegroundColor Yellow
+    Write-Host "         Erneut versuchen: install-llama.ps1, oder https://ollama.com/download + ollama pull gemma3:4b"
 } else {
     $models = & ollama list 2>$null
     if ($models -notmatch "gemma3:4b") {

@@ -3,7 +3,8 @@
 Goal: a fully local push-to-talk dictation app for Windows. Core loop:
 **hold hotkey -> speak -> release -> formatted text appears in the active
 field.** Everything runs on the user's machine: Whisper for STT, a small
-local LLM (Ollama) for cleanup. No network calls beyond localhost.
+local LLM for cleanup (own llama-server, Ollama as fallback). No network
+calls beyond localhost.
 
 ## Module map
 
@@ -16,7 +17,7 @@ local LLM (Ollama) for cleanup. No network calls beyond localhost.
 | `stt_mlx.py` | mlx-whisper (Metal) for Apple Silicon - same interface as `stt.py`, plus an energy gate replacing the missing VAD |
 | `stt_factory.py` | picks the platform engine (mlx on darwin, faster-whisper elsewhere; explicit device pins force faster-whisper) |
 | `stt_quality.py` | engine-independent hallucination + prompt-echo guards, shared by both engines |
-| `cleanup.py` | Ollama cleanup, prompt calibrated for light-touch formatting; health check + on-demand `ollama serve` with double-spawn protection |
+| `cleanup.py` | Cleanup engines behind `make_cleaner`: `LlamaCppCleaner` runs LocalFlow's own `llama-server` as a child process (free loopback port, per-run API key, Windows job object, idle unload, GPU->CPU fallback on GPU errors or a too-slow GPU); `Cleaner` talks to Ollama (fallback, double-spawn protection). Shared prompt, plausibility check and deterministic äh/ähm removal |
 | `commands.py` | Trailing voice commands ("press enter" -> key press), phrase matching on the raw transcript |
 | `pipeline.py` | STT -> voice-command extraction -> cleanup -> dictionary/snippets -> history; GPU inference serialized |
 | `inject.py` | Clipboard save -> set -> Ctrl+V -> restore (multi-format preservation: text, images, file lists); paste bound to the window that was focused at dictation time; synthetic key sender for voice commands |

@@ -19,6 +19,13 @@
   (2026-09-15) und Gemma 3 4B nach `data/llamacpp/`, beide auf eine Version
   gepinnt und per SHA-256 geprueft; die einmalige Gatekeeper-Pruefung der
   Binaerdatei (~37 s) passiert schon bei der Installation.
+- **Windows: install-llama.ps1** (von `install.ps1` aufgerufen): laedt
+  llama.cpp b10991 als Vulkan-Build (~30 MB, jede GPU oder CPU) und
+  Gemma 3 4B, gepinnt und per SHA-256 geprueft. Vulkan statt CUDA, weil auf
+  einer RTX 5080 gleich schnell im Diktat (228 vs. 220 ms Median) bei 30 MB
+  statt 546 MB. Vorhandene Dateien bleiben unangetastet. CI-Job
+  `windows-llama` fuehrt den Installer real aus und testet gegen den echten
+  Server.
 - **llama-server robuster**: Startwartezeit 180 s (Mac: Metal-Init ~40 s),
   waehrenddessen Rohtext statt Warten; Vorwaermen mit langem Timeout
   (Metal-Kernel werden beim ersten Request kompiliert). Bei GPU-Rechenfehler

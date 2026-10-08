@@ -65,22 +65,25 @@ Stopp), `Strg + Alt + Leertaste` als alternativer Umschalter. Alles
 (Hotkeys, Mikrofon, Sprachen, Design) laesst sich im Dashboard
 einstellen: Tray-Icon -> "Dashboard oeffnen".
 
-### 5. Optional: AI-Aufbereitung (empfohlen)
+### 5. AI-Aufbereitung (automatisch eingerichtet)
 
-Ohne diesen Schritt bekommst du das rohe Transkript; mit ihm
-Zeichensetzung, Gross-/Kleinschreibung und Fuellwort-Entfernung:
+Der Installer hat die Cleanup-Engine schon geladen: llama.cpp (~30 MB)
+und das Modell Gemma 3 4B (~2,5 GB) nach `data\llamacpp\`. LocalFlow
+startet sie selbst - nichts weiter zu installieren, keine zusaetzliche
+Hintergrund-App. Sie sorgt fuer Zeichensetzung, Gross-/Kleinschreibung
+und Fuellwort-Entfernung; ohne sie kommt das rohe Transkript.
 
-1. [Ollama](https://ollama.com/download) installieren (kostenlos, lokal).
-2. Eingabeaufforderung oeffnen und ausfuehren: `ollama pull gemma3:4b`
-   (~3 GB).
-
-Fertig - LocalFlow findet Ollama beim naechsten Diktat automatisch.
+Ist der Download gescheitert (z.B. kein Internet beim Setup):
+`install-llama.ps1` erneut ausfuehren, oder [Ollama](https://ollama.com/download)
+installieren und `ollama pull gemma3:4b` ausfuehren - LocalFlow nutzt
+Ollama als Fallback.
 
 ### Deinstallation
 
 **`uninstall.bat`** im LocalFlow-Ordner doppelklicken. Beendet die App,
 entfernt Autostart- und Startmenue-Eintraege und fragt nach, bevor
 Modell-Cache, Ollama-Modell oder deine Diktat-History geloescht werden.
+Die Cleanup-Engine in `data\llamacpp\` verschwindet mit dem LocalFlow-Ordner.
 
 ---
 
@@ -106,7 +109,8 @@ In diesem Ablauf erscheint keine Gatekeeper-Warnung - du fuehrst ein
 offenes Skript selbst aus, statt eine heruntergeladene App zu oeffnen.
 Der Installer erstellt eine isolierte Umgebung (`.venv/`), installiert
 die Abhaengigkeiten (inkl. Metal-Sprach-Engine auf Apple Silicon),
-prueft Ollama und erzeugt **LocalFlow.app in ~/Applications**. Diese App
+laedt die Cleanup-Engine (llama.cpp mit Metal + Gemma 3 4B, ~2,5 GB)
+und erzeugt **LocalFlow.app in ~/Applications**. Diese App
 wird lokal auf deinem Rechner gebaut - deshalb braucht sie weder
 Apple-Signatur noch Notarisierung und loest ebenfalls keine
 Gatekeeper-Warnung aus.
@@ -136,8 +140,8 @@ HuggingFace).
 **`Ctrl + Cmd` halten** (das Mac-Pendant zu Strg+Win), sprechen,
 loslassen. Dashboard: Menueleisten-Icon -> "Dashboard oeffnen".
 
-Optionale AI-Aufbereitung: [Ollama](https://ollama.com/download)
-installieren, dann `ollama pull gemma3:4b`.
+Die AI-Aufbereitung richtet der Installer ein (llama.cpp + Gemma 3 4B);
+Ollama ist nur noch Fallback.
 
 ### Deinstallation
 

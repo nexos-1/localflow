@@ -5,7 +5,10 @@
 LocalFlow is built to keep everything on your machine:
 
 - No telemetry, no cloud calls: the core loop talks only to
-  `127.0.0.1` (Ollama) - dictated audio and text never leave the device.
+  `127.0.0.1` (LocalFlow's own llama-server, or Ollama as fallback) -
+  dictated audio and text never leave the device. The llama-server gets a
+  random API key per run (it would otherwise accept cross-origin requests
+  from any website) and has its web UI disabled.
 - The dashboard binds to `127.0.0.1` only, with a Host allowlist
   (DNS-rebinding defense) and custom-header CSRF protection on all
   state-changing routes.
