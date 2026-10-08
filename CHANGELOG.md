@@ -15,6 +15,23 @@
   Server nicht, uebernimmt Ollama wie bisher. Gemessen mit 8 echten Diktaten
   durch die volle Pipeline: Cleanup-Median 350 ms (Ollama: 367 ms). Tests:
   `tests/test_llamacpp_engine.py`.
+- **macOS: llama.cpp mit Metal ueber install.sh**: laedt llama.cpp b10991
+  (2026-09-15) und Gemma 3 4B nach `data/llamacpp/`, beide auf eine Version
+  gepinnt und per SHA-256 geprueft; die einmalige Gatekeeper-Pruefung der
+  Binaerdatei (~37 s) passiert schon bei der Installation.
+- **llama-server robuster**: Startwartezeit 180 s (Mac: Metal-Init ~40 s),
+  waehrenddessen Rohtext statt Warten; Vorwaermen mit langem Timeout
+  (Metal-Kernel werden beim ersten Request kompiliert). Bei GPU-Rechenfehler
+  ("GPU Hang", danach dauerhaft 500) oder zu langsamer GPU (Kurz-Request
+  > 3 s, z.B. virtualisierte Metal-GPU in macOS-VMs) startet LocalFlow den
+  Server auf der CPU neu. Neues Setting `llamacpp_gpu_layers`.
+- **Sicherheit**: jeder llama-server-Lauf bekommt einen zufaelligen API-Key
+  (llama-server erlaubt sonst CORS fuer alle Origins ohne Auth), Web-UI aus.
+  Auf macOS raeumt LocalFlow verwaiste eigene Server nach einem Absturz auf.
+- **CI-Job macos-e2e** (echtes macOS 26, Apple Silicon): install.sh real,
+  App-Start, mit `say` gesprochene Diktate durch die volle Pipeline, GPU-
+  Erkennung, SIGKILL + Neustart. Prueft Funktion, nicht Latenz (Runner-GPU
+  0.46 Tok/s). Test: `tests/test_e2e_mac_ci.py`.
 - **Enter beendet die Aufnahme und sendet ab** (Windows, Option im Dashboard
   unter Hotkeys, Standard aus): Enter waehrend einer Aufnahme stoppt sie,
   der fertige Text wird eingefuegt und danach Enter gedrueckt - kein extra
@@ -47,6 +64,12 @@
   `config.json` entfernt.
 
 ### Fixed
+- **macOS: Datei-Transkription ohne ffmpeg**: mlx-whisper lud Audiodateien
+  ueber das ffmpeg-Binary, das auf Macs meist fehlt; Pfade werden jetzt per
+  PyAV dekodiert.
+- **macOS: Debug-Diktat-Endpunkt** importierte das Win32-Modul
+  `localflow.inject` und brach mit `win32api` ab; nutzt jetzt das
+  Plattform-Backend wie das echte Diktat.
 - **"Äh"/"Ähm" bleiben nicht mehr stehen**: Gemma 3 4B liess deutsche
   Fuellwoerter trotz Prompt-Regel fast immer stehen (9 von 9 in Testsaetzen,
   9 von 10 in echten Diktaten; ein zusaetzliches Few-Shot-Beispiel half kaum).
