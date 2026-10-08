@@ -77,6 +77,44 @@ with c._start_lock:
 fb.clean.assert_not_called()
 print("4b. Server startet noch -> sofort Rohtext, kein Warten OK")
 
+# 4c. GPU-Rechenfehler (500 "Compute error", Feldbefund macos-latest: GPU
+#     Hang) -> Server auf CPU neu starten statt dauerhaft 500 zu liefern
+import requests  # noqa: E402
+
+
+def gpu_error():
+    resp = mock.Mock(status_code=500, text='{"error":{"message":"Compute error."}}')
+    return requests.HTTPError("500 Server Error", response=resp)
+
+
+c = LlamaCppCleaner("egal", "egal.gguf")
+c._ready, c._proc = True, mock.Mock(poll=lambda: None, pid=0)
+starts = []
+c.ensure_running = lambda: starts.append(c.gpu_layers) or True
+c._complete = mock.Mock(side_effect=gpu_error())
+assert c.clean("eins zwei drei vier") == "eins zwei drei vier"
+time.sleep(0.2)
+assert c.gpu_layers == 0 and starts == [99, 0], (c.gpu_layers, starts)
+print("4c. GPU-Fehler im Diktat -> Neustart auf CPU OK")
+
+c = LlamaCppCleaner("egal", "egal.gguf")
+c.ensure_running = lambda: True
+c.is_running = lambda: True
+c._stop_proc = lambda: None
+c._complete = mock.Mock(side_effect=[gpu_error(), "ok"])
+c.warmup()
+assert c.gpu_layers == 0 and c._complete.call_count == 2
+print("4d. GPU-Fehler beim Vorwaermen -> CPU, zweiter Versuch OK")
+
+# 4e. Andere 500er (kein GPU-Fehler) schalten NICHT auf CPU
+c = LlamaCppCleaner("egal", "egal.gguf")
+c._ready, c._proc = True, mock.Mock(poll=lambda: None, pid=0)
+resp = mock.Mock(status_code=500, text="context size exceeded")
+c._complete = mock.Mock(side_effect=requests.HTTPError("500", response=resp))
+c.clean("eins zwei drei vier")
+assert c.gpu_layers == 99
+print("4e. sonstiger Serverfehler -> GPU bleibt OK")
+
 # --- Echter Server ---
 DATA = os.path.join(ROOT, "data", "llamacpp")
 SERVER = os.path.join(DATA, "bin", "llama-server.exe")

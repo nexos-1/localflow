@@ -62,6 +62,9 @@ DEFAULTS = {
     # Nach so vielen Sekunden Leerlauf entlaedt llama-server das Modell aus
     # VRAM/RAM; das naechste Diktat weckt es (~2s, parallel zur Aufnahme).
     "llamacpp_idle_s": 7200,
+    # Modellschichten auf der GPU (CUDA/Metal); 0 = nur CPU. Bei einem GPU-
+    # Rechenfehler schaltet LocalFlow fuer den Rest der Sitzung selbst auf CPU.
+    "llamacpp_gpu_layers": 99,
     "ollama_model": "gemma3:4b",
     "ollama_url": "http://127.0.0.1:11434",  # 127.0.0.1 statt localhost: spart ~2s IPv6-Fallback
     "ai_cleanup": True,
