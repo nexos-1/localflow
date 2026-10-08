@@ -104,8 +104,9 @@ def boot(label: str) -> subprocess.Popen:
     # Metal-Init auf dem CI-Runner ~40s (Diagnose 2026-10-08), Reserve 4x
     wait_for(lambda: "llama-server bereit" in log_text()[log_before:], 240,
              f"{label}: llama-server bereit", app)
-    # Vorwaermen kompiliert die Metal-Kernel (CI-VM: ~1 Min)
-    wait_for(lambda: "llama.cpp-Cleanup vorgewaermt" in log_text()[log_before:], 360,
+    # Vorwaermen kompiliert die Metal-Kernel (CI-VM: ~1 Min); ist die GPU zu
+    # langsam, folgt ein CPU-Neustart mit zweitem Vorwaermen
+    wait_for(lambda: "llama.cpp-Cleanup vorgewaermt" in log_text()[log_before:], 600,
              f"{label}: Cleanup vorgewaermt", app)
     print(f"{label}: App + llama-server bereit")
     return app
