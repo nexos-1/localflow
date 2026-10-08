@@ -103,6 +103,24 @@ jobs:
           test -f "$HOME/Applications/LocalFlow.app/Contents/Resources/localflow.icns"
           cat "$HOME/Applications/LocalFlow.app/Contents/MacOS/localflow"
 
+  # Windows-Installer der Cleanup-Engine real: install-llama.ps1 laedt
+  # llama.cpp b10991 (Vulkan) + Gemma 3 4B (SHA-256-geprueft), danach laufen
+  # die Engine-Tests gegen den ECHTEN Server (Runner ohne GPU -> CPU).
+  windows-llama:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install requests psutil
+      - name: install-llama.ps1 (llama.cpp + Modell)
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File install-llama.ps1
+      - name: Engine-Tests gegen echten llama-server
+        run: python tests/test_llamacpp_engine.py
+
   # Ende-zu-Ende auf echtem macOS (Apple Silicon): install.sh real ausfuehren
   # (inkl. llama.cpp b10991 mit Metal + Gemma 3 4B, SHA-256-geprueft), App
   # starten und mit `say` gesprochene Diktate durch die volle Pipeline

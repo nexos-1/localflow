@@ -286,9 +286,18 @@ install time.
   behavior.
 - `ensure_launcher_shortcut` and `set_dpi_awareness`: no-ops on darwin.
 
-### 3.8 Cleanup (Ollama)
-- Replace the Windows `creationflags` with `start_new_session=True` on
-  POSIX. Ollama ships natively for macOS. `psutil` is a direct dependency.
+### 3.8 Cleanup (llama.cpp, Ollama fallback) - CI-VERIFIED 2026-10-08
+- Default engine is LocalFlow's own `llama-server` (llama.cpp b10991 with
+  Metal, Gemma 3 4B), installed by `install.sh` (pinned, SHA-256). Ollama
+  remains a fallback.
+- Measured on `macos-latest` (job `macos-e2e`): first launch of the ad-hoc
+  signed binary costs ~37 s of Gatekeeper assessment (moved into
+  `install.sh`); Metal init ~40 s; the runners' virtualized GPU then either
+  hangs (`kIOGPUCommandBufferCallbackErrorHang`, every later request 500)
+  or runs at 0.46 tok/s. LocalFlow detects both and restarts the server on
+  CPU. Real Apple Silicon latency is still unmeasured - tester task.
+- No job objects on macOS: orphaned servers (parent gone) are killed on the
+  next start.
 
 ### 3.9 STT - MEASURED 2026-07-08 (GitHub macos-latest, Apple Silicon)
 - `large-v3-turbo` on ctranslate2 CPU/int8 is **far too slow**: ~20 s to
@@ -435,9 +444,13 @@ Verification status - be honest about this:
 - Verified via CI on real macOS runners once the repo is on GitHub
   (`.github/workflows/ci.yml`): imports, backend construction,
   NSPasteboard round-trip, portable unit tests.
+- Verified via CI job `macos-e2e` (2026-10-08): `install.sh` end to end,
+  app start, spoken dictations (`say`, de+en) through mlx-whisper ->
+  llama.cpp cleanup -> dictionary, orphan cleanup after SIGKILL.
 - NOT verified anywhere yet: event taps/permissions, CGEvent key codes on
   real hardware, pynput mouse-button values, focus/activation behavior,
-  end-to-end dictation. Anyone running this on a Mac is a tester.
+  microphone capture, Metal cleanup latency. Anyone running this on a Mac
+  is a tester.
 
 ### Phase 3b - remaining on real hardware
 - ~~NSPanel overlay + tray on one AppKit main loop (section 3.3)~~ DONE

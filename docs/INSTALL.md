@@ -63,21 +63,24 @@ stop), `Ctrl + Alt + Space` as an alternative toggle. Everything
 (hotkeys, microphone, languages, design) is configurable in the
 dashboard: tray icon -> "Dashboard öffnen".
 
-### 5. Optional: AI cleanup (recommended)
+### 5. AI cleanup (set up automatically)
 
-Without this step you get the raw transcript; with it, punctuation,
-casing and filler-word removal:
+The installer already downloaded the cleanup engine: llama.cpp (~30 MB)
+and the Gemma 3 4B model (~2.5 GB) into `data\llamacpp\`. LocalFlow starts
+it by itself - nothing else to install, no extra background app. It adds
+punctuation, casing and filler-word removal; without it you get the raw
+transcript.
 
-1. Install [Ollama](https://ollama.com/download) (free, local).
-2. Open a command prompt and run: `ollama pull gemma3:4b` (~3 GB).
-
-That's it - LocalFlow finds Ollama automatically on the next dictation.
+If that download failed (e.g. no internet during setup), run
+`install-llama.ps1` again, or install [Ollama](https://ollama.com/download)
+and run `ollama pull gemma3:4b` - LocalFlow uses Ollama as a fallback.
 
 ### Uninstall
 
 Double-click **`uninstall.bat`** in the LocalFlow folder. It stops the
 app, removes the autostart and Start Menu entries, and asks before
 deleting the model cache, the Ollama model and your dictation history.
+The cleanup engine in `data\llamacpp\` goes away with the LocalFlow folder.
 
 ---
 
@@ -101,7 +104,8 @@ bash install.sh
 No Gatekeeper warning appears in this flow - you are running an open
 script yourself rather than opening a downloaded app. The installer
 creates an isolated environment (`.venv/`), installs dependencies
-(including the Metal speech engine on Apple Silicon), checks Ollama, and
+(including the Metal speech engine on Apple Silicon), downloads the
+cleanup engine (llama.cpp with Metal + Gemma 3 4B, ~2.5 GB), and
 generates **LocalFlow.app in ~/Applications**. That app is built locally
 on your machine, which is why it needs no Apple signing/notarization and
 triggers no Gatekeeper warning either.
@@ -128,8 +132,8 @@ First start also downloads the speech model (~1.5 GB from HuggingFace).
 Hold **`Ctrl + Cmd`** (the Mac equivalent of Ctrl+Win), speak, release.
 Dashboard: menu-bar icon -> "Dashboard öffnen".
 
-Optional AI cleanup: install [Ollama](https://ollama.com/download), then
-`ollama pull gemma3:4b`.
+AI cleanup is set up by the installer (llama.cpp + Gemma 3 4B); Ollama
+is only a fallback.
 
 ### Uninstall
 
