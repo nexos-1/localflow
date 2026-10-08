@@ -120,3 +120,18 @@ while psutil.pid_exists(server_pid) and time.monotonic() < deadline:
     time.sleep(0.2)
 assert not psutil.pid_exists(server_pid), "verwaister llama-server nach hartem Kill"
 print("7. harter Kill von LocalFlow nimmt den Server mit OK")
+
+# 8. Waisen-Aufraeumer laesst Server eines LEBENDEN Elternprozesses in Ruhe
+#    (Feldbefund 2026-10-08: ein Test-Cleaner hat den Server der laufenden
+#    App mit beendet, solange nur die Programmdatei verglichen wurde)
+parent = subprocess.Popen([sys.executable, "-c", child], stdout=subprocess.PIPE, text=True)
+other_pid = int(parent.stdout.readline())
+c = LlamaCppCleaner(SERVER, MODEL, timeout=30)
+try:
+    assert c.ensure_running()
+    assert psutil.pid_exists(other_pid), "fremder llama-server mit lebendem Besitzer beendet"
+    print("8. Server einer anderen lebenden Instanz bleibt unangetastet OK")
+finally:
+    c.close()
+    parent.kill()
+    parent.wait()

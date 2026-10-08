@@ -445,7 +445,31 @@ class LlamaCppCleaner:
             self._stop_proc()
             return False
 
+    def _kill_stale_servers(self):
+        """Verwaiste eigene llama-server beenden: gleiche Programmdatei UND
+        der Elternprozess lebt nicht mehr (POSIX: von launchd/init adoptiert).
+        Server eines noch laufenden Elternprozesses (z.B. einer Test-Instanz
+        neben der App) bleiben unangetastet. Auf Windows verhindert das
+        Job-Objekt Waisen; auf macOS gibt es nichts Vergleichbares, dort
+        bleibt der Server nach einem Absturz oder SIGKILL von LocalFlow
+        stehen und belegt RAM."""
+        try:
+            import psutil
+            target = os.path.normcase(os.path.realpath(self.server_path))
+            for p in psutil.process_iter(["exe", "ppid"]):
+                exe = p.info.get("exe")
+                if not exe or os.path.normcase(os.path.realpath(exe)) != target:
+                    continue
+                ppid = p.info.get("ppid") or 0
+                if ppid > 1 and psutil.pid_exists(ppid):
+                    continue  # hat einen lebenden Besitzer
+                log.info("Beende verwaisten llama-server (PID %d)", p.pid)
+                p.kill()
+        except Exception as e:  # noqa: BLE001
+            log.debug("Suche nach verwaisten llama-servern fehlgeschlagen: %s", e)
+
     def _start(self) -> bool:
+        self._kill_stale_servers()
         self._port = _free_port()
         args = [self.server_path, "-m", self.model_path,
                 "--host", "127.0.0.1", "--port", str(self._port),
