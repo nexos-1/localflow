@@ -101,9 +101,9 @@ c = LlamaCppCleaner("egal", "egal.gguf")
 c.ensure_running = lambda: True
 c.is_running = lambda: True
 c._stop_proc = lambda: None
-c._complete = mock.Mock(side_effect=[gpu_error(), "ok"])
+c._complete = mock.Mock(side_effect=[gpu_error(), "ok", "ok"])
 c.warmup()
-assert c.gpu_layers == 0 and c._complete.call_count == 2
+assert c.gpu_layers == 0 and c._complete.call_count == 3
 print("4d. GPU-Fehler beim Vorwaermen -> CPU, zweiter Versuch OK")
 
 # 4e. Andere 500er (kein GPU-Fehler) schalten NICHT auf CPU
@@ -114,6 +114,36 @@ c._complete = mock.Mock(side_effect=requests.HTTPError("500", response=resp))
 c.clean("eins zwei drei vier")
 assert c.gpu_layers == 99
 print("4e. sonstiger Serverfehler -> GPU bleibt OK")
+
+# 4f. GPU funktioniert, ist aber zu langsam (virtualisierte Metal-GPU):
+#     Kurz-Request nach dem Vorwaermen > 75% des Diktat-Timeouts -> CPU
+c = LlamaCppCleaner("egal", "egal.gguf", timeout=0.4)
+c.ensure_running = lambda: True
+c.is_running = lambda: True
+c._stop_proc = lambda: None
+calls = []
+
+
+def slow_on_gpu(*a):
+    calls.append(c.gpu_layers)
+    if c.gpu_layers and len(calls) == 2:
+        time.sleep(0.35)
+    return "ok"
+
+
+c._complete = slow_on_gpu
+c.warmup()
+assert c.gpu_layers == 0 and calls == [99, 99, 0, 0], calls
+print("4f. GPU zu langsam -> CPU OK")
+
+# 4g. Schnelle GPU bleibt GPU
+c = LlamaCppCleaner("egal", "egal.gguf", timeout=8)
+c.ensure_running = lambda: True
+c.is_running = lambda: True
+c._complete = mock.Mock(return_value="ok")
+c.warmup()
+assert c.gpu_layers == 99 and c._complete.call_count == 2
+print("4g. schnelle GPU bleibt GPU OK")
 
 # --- Echter Server ---
 DATA = os.path.join(ROOT, "data", "llamacpp")

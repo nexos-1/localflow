@@ -566,8 +566,23 @@ class LlamaCppCleaner:
                         self._switch_to_cpu(background=False)
                         continue
                     raise
-                log.info("llama.cpp-Cleanup vorgewaermt (%.1fs, %s)",
-                         time.perf_counter() - t0,
+                warm_s = time.perf_counter() - t0
+                # Zweiter Kurz-Request mit gecachtem Prompt = realistische
+                # Diktat-Latenz. Ist die GPU dafuer zu langsam, ist CPU besser.
+                # Feldbefund macos-latest 2026-10-08: virtualisierte Metal-GPU
+                # mit 12.5 Tok/s Prompt und 0.46 Tok/s Ausgabe - jedes Diktat
+                # lief in den Timeout. Betrifft auch macOS-VMs (UTM/Parallels).
+                t1 = time.perf_counter()
+                self._complete("hallo test", None, self.WARM_TIMEOUT_S)
+                probe_s = time.perf_counter() - t1
+                if self.gpu_layers > 0 and probe_s > 0.75 * self._timeout:
+                    log.warning("GPU zu langsam fuers Cleanup (%.1fs fuer einen "
+                                "Kurz-Request, Diktat-Timeout %.0fs)",
+                                probe_s, self._timeout)
+                    self._switch_to_cpu(background=False)
+                    continue
+                log.info("llama.cpp-Cleanup vorgewaermt (%.1fs, Kurz-Request "
+                         "%.2fs, %s)", warm_s, probe_s,
                          "GPU" if self.gpu_layers else "CPU")
                 return
             if not self.is_running() and self.fallback:
