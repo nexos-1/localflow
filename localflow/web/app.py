@@ -376,19 +376,21 @@ def create_app(settings, db, main_app=None):
                 return jsonify({"error": f"WAV nicht gefunden: {wav}"}), 404
             if not main_app.models_ready.wait(timeout=180):
                 return jsonify({"error": "Modelle nicht geladen"}), 503
-            from ..inject import PASTE_OK, get_active_app, paste_text
+            # Plattform-Backend wie im echten Diktat (main.py), nicht das
+            # Win32-Modul localflow.inject - das bricht auf macOS beim Import.
+            inj = main_app.backends.inject
             result = main_app.pipeline.process(wav)
             paste_status = "skipped"
             if result.status == "ok" and result.final_text and data.get("paste", True):
-                app_name, title = get_active_app()
-                paste_status = paste_text(result.final_text, target_hwnd=data.get("hwnd"))
+                app_name, title = inj.get_active_app()
+                paste_status = inj.paste_text(result.final_text, target_hwnd=data.get("hwnd"))
                 main_app.pipeline.record_history(result, app=app_name, window_title=title,
-                                                 pasted=paste_status == PASTE_OK)
+                                                 pasted=paste_status == inj.PASTE_OK)
             return jsonify({"status": result.status, "asr": result.asr_text,
                             "final": result.final_text, "language": result.language,
                             "stt_ms": result.stt_ms, "cleanup_ms": result.cleanup_ms,
                             "total_ms": result.total_ms,
-                            "pasted": paste_status == PASTE_OK,
+                            "pasted": paste_status == inj.PASTE_OK,
                             "paste_status": paste_status})
 
     @app.get("/api/debug/state")
