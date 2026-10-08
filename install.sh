@@ -58,6 +58,11 @@ if [ "${LOCALFLOW_SKIP_LLAMA:-0}" != "1" ] && [ -n "$LLAMA_ASSET" ]; then
     if verify_sha "$TMP_DIR/llama.tar.gz" "$LLAMA_SHA"; then
       mkdir -p "$BIN_DIR"
       tar -xzf "$TMP_DIR/llama.tar.gz" -C "$BIN_DIR" --strip-components 1
+      # Erster Start einer neuen (ad-hoc signierten) Binaerdatei: macOS prueft
+      # sie samt Bibliotheken einmalig (CI gemessen ~37s). Hier vorziehen,
+      # damit LocalFlows erster Serverstart das nicht zahlt.
+      echo "Erster Start von llama-server (einmalige macOS-Pruefung, bis ~1 Min)..."
+      "$BIN_DIR/llama-server" --version >/dev/null 2>&1 || true
     else
       echo "FEHLER: SHA-256 von $LLAMA_ASSET stimmt nicht - verworfen." >&2
     fi
