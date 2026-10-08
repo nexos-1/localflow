@@ -7,6 +7,12 @@ verwaiste Server muss beim naechsten Start aufgeraeumt werden.
 
 Voraussetzung: `bash install.sh` ist gelaufen. Mikrofon und Hotkeys sind auf
 dem Runner nicht testbar (keine Freigaben) - das bleibt ein Test am echten Mac.
+
+Latenz ist hier NICHT aussagekraeftig: Die virtualisierte Metal-GPU des
+Runners rechnet mit 0.46 Tok/s (LocalFlow erkennt das und wechselt auf CPU),
+die 3 vCPUs schaffen 6-10 Tok/s - ein Diktat braucht ~8s. Der Test setzt
+deshalb cleanup_timeout_s = 30 in der CI-Config (Nutzer-Standard bleibt 8s)
+und prueft die Funktion, nicht die Geschwindigkeit. Metal-Latenz: echter Mac.
 """
 
 import os
@@ -112,6 +118,11 @@ def boot(label: str) -> subprocess.Popen:
     return app
 
 
+# CI-Config: nur der Diktat-Timeout (siehe Docstring), sonst Standard
+os.makedirs(DATA, exist_ok=True)
+with open(os.path.join(DATA, "config.json"), "w", encoding="utf-8") as f:
+    f.write('{"cleanup_timeout_s": 30}')
+
 wav_de = make_wav("Ähm, also das Meeting ist morgen um zehn Uhr und nicht um neun. "
                   "Kannst du bitte allen Bescheid sagen?", "de")
 wav_en = make_wav("um so can you check the login page i think there is something "
@@ -154,7 +165,8 @@ try:
     assert res["status"] == "ok" and res["language"] == "en", res
     assert "Cleanup fehlgeschlagen" not in log_text()[before:], "EN-Cleanup fehlgeschlagen"
     full = log_text()
-    mode = "CPU (nach GPU-Fehler)" if "auf der CPU neu" in full else "GPU (Metal)"
+    mode = ("CPU (GPU zu langsam)" if "GPU zu langsam" in full
+            else "CPU (nach GPU-Fehler)" if "auf der CPU neu" in full else "GPU (Metal)")
     print(f"Cleanup-Zeiten (ms): {[round(t) for t in times]}, Modus: {mode}")
     assert "Ollama" not in full.split("llama-server bereit", 1)[-1], "Ollama-Fallback statt llama.cpp"
 

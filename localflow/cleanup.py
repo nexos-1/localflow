@@ -392,6 +392,10 @@ class LlamaCppCleaner:
     # 2026-10-08: erster Request ~59s fuer 302 Tokens). Mit dem kurzen
     # Diktat-Timeout wurde dieser Request abgebrochen, bevor alles fertig war.
     WARM_TIMEOUT_S = 300.0
+    # Kurz-Request nach dem Vorwaermen (gecachter Prompt, 4 Tokens Ausgabe):
+    # echte GPUs < 0.5s (RTX 5080: ~0.15s), CPU des CI-Macs 0.83s, die
+    # virtualisierte Metal-GPU 13.7s. Darueber gilt die GPU als zu langsam.
+    SLOW_GPU_PROBE_S = 3.0
 
     def __init__(self, server_path: str, model_path: str, timeout: float = 15.0,
                  idle_s: int = 7200, fallback: Cleaner | None = None,
@@ -575,7 +579,8 @@ class LlamaCppCleaner:
                 t1 = time.perf_counter()
                 self._complete("hallo test", None, self.WARM_TIMEOUT_S)
                 probe_s = time.perf_counter() - t1
-                if self.gpu_layers > 0 and probe_s > 0.75 * self._timeout:
+                limit = min(self.SLOW_GPU_PROBE_S, 0.75 * self._timeout)
+                if self.gpu_layers > 0 and probe_s > limit:
                     log.warning("GPU zu langsam fuers Cleanup (%.1fs fuer einen "
                                 "Kurz-Request, Diktat-Timeout %.0fs)",
                                 probe_s, self._timeout)
@@ -673,8 +678,8 @@ class LlamaCppCleaner:
 
     def _switch_to_cpu(self, background: bool):
         """Server ohne GPU-Schichten neu starten (gilt bis zum App-Neustart)."""
-        log.warning("GPU-Fehler im llama-server - starte ihn auf der CPU neu "
-                    "(langsamer, aber stabil)")
+        log.warning("llama-server: starte ihn auf der CPU neu (GPU fehlerhaft "
+                    "oder zu langsam)")
         self.gpu_layers = 0
         with self._start_lock:
             self._stop_proc()
