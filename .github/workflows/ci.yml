@@ -118,24 +118,6 @@ jobs:
           python-version: "3.12"
       - name: install.sh (venv, Dependencies, llama.cpp, Modell)
         run: bash install.sh
-      - name: llama-server direkt starten (Diagnose)
-        run: |
-          B=data/llamacpp/bin
-          ls -la "$B" | head -40
-          codesign -dv "$B/llama-server" 2>&1 || true
-          xattr -l "$B/llama-server" || true
-          time "$B/llama-server" --version 2>&1 | tail -3
-          "$B/llama-server" -m data/llamacpp/models/gemma-3-4b-it-Q4_K_M.gguf \
-            --host 127.0.0.1 --port 8099 -ngl 99 -c 4096 -np 1 --jinja --no-mmproj \
-            > "$RUNNER_TEMP/ls.log" 2>&1 &
-          P=$!
-          for i in $(seq 1 180); do
-            curl -sf http://127.0.0.1:8099/health && break
-            sleep 1
-          done
-          echo "health nach ${i}s"
-          tail -n 80 "$RUNNER_TEMP/ls.log"
-          kill $P || true
       - name: E2E-Diktat ueber llama.cpp auf Metal
         run: .venv/bin/python tests/test_e2e_mac_ci.py
       - name: Logs bei Fehler

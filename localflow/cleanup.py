@@ -12,6 +12,7 @@ import atexit
 import logging
 import os
 import re
+import secrets
 import shutil
 import socket
 import subprocess
@@ -379,7 +380,12 @@ class LlamaCppCleaner:
     Format) - das Modell ist eine eigene GGUF-Datei. Ist der Server nicht
     startbar, uebernimmt der Ollama-Cleaner (fallback)."""
 
-    START_WAIT_S = 30.0   # Serverstart inkl. Modell-Laden
+    # Serverstart inkl. Modell-Laden. Windows/RTX: ~2s. macOS (CI-Runner,
+    # macos-latest, 2026-10-08): Metal-Init + Kontext ~39s, beim allerersten
+    # Start einer neuen Binaerdatei zusaetzlich ~37s Gatekeeper-Pruefung
+    # (install.sh zieht die vor). Waehrenddessen liefert clean() Rohtext,
+    # statt zu warten - die lange Grenze blockiert also kein Diktat.
+    START_WAIT_S = 180.0
     RETRY_AFTER_S = 60.0  # nach Startfehler nicht bei jedem Diktat neu probieren
 
     def __init__(self, server_path: str, model_path: str, timeout: float = 15.0,
@@ -397,6 +403,11 @@ class LlamaCppCleaner:
         self._port: int | None = None
         self._ready = False
         self._failed_at = -1e9
+        # Zufaelliger API-Key pro LocalFlow-Lauf: llama-server erlaubt
+        # sonst CORS fuer alle Origins ohne Auth - jede Webseite im Browser
+        # koennte den lokalen Server benutzen. Uebergabe per Umgebung
+        # (LLAMA_API_KEY), damit er nicht in der Prozessliste steht.
+        self._api_key = secrets.token_urlsafe(24)
         self._start_lock = threading.Lock()
         self._touch_lock = threading.Lock()
         self._last_used = 0.0
@@ -474,9 +485,11 @@ class LlamaCppCleaner:
         args = [self.server_path, "-m", self.model_path,
                 "--host", "127.0.0.1", "--port", str(self._port),
                 "-ngl", "99", "-c", "4096", "-np", "1", "--jinja",
-                "--no-mmproj", "--sleep-idle-seconds", str(self.idle_s)]
+                "--no-mmproj", "--no-webui",
+                "--sleep-idle-seconds", str(self.idle_s)]
         kwargs = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                      stderr=subprocess.DEVNULL)
+                      stderr=subprocess.DEVNULL,
+                      env=dict(os.environ, LLAMA_API_KEY=self._api_key))
         if sys.platform == "win32":
             # Kind (NICHT detached) ohne Konsolenfenster; die Lebensdauer
             # haengt am Job-Objekt unten.
@@ -568,6 +581,10 @@ class LlamaCppCleaner:
         text = strip_fillers(text.strip())
         if not text:
             return text
+        if not self.is_running() and self._start_lock.locked():
+            # Server startet noch (Mac: bis ~40s) - nicht warten, Rohtext.
+            log.info("llama-server startet noch - Diktat ohne Cleanup")
+            return text
         if not self.ensure_running():
             return self.fallback.clean(text, language) if self.fallback else text
         try:
@@ -575,6 +592,7 @@ class LlamaCppCleaner:
                 f"{self.base_url}/v1/chat/completions",
                 json={"messages": _build_messages(text, language),
                       "temperature": 0.1, "max_tokens": 2048},
+                headers={"Authorization": f"Bearer {self._api_key}"},
                 timeout=self._timeout,
             )
             r.raise_for_status()

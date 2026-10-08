@@ -101,7 +101,8 @@ def boot(label: str) -> subprocess.Popen:
     wait_for(lambda: requests.get(f"{API}/api/debug/state", headers=HDR,
                                   timeout=2).json().get("models_ready"),
              1200, f"{label}: Modelle bereit (Whisper-Download beim ersten Start)", app)
-    wait_for(lambda: "llama-server bereit" in log_text()[log_before:], 120,
+    # Metal-Init auf dem CI-Runner ~40s (Diagnose 2026-10-08), Reserve 4x
+    wait_for(lambda: "llama-server bereit" in log_text()[log_before:], 240,
              f"{label}: llama-server bereit", app)
     print(f"{label}: App + llama-server bereit")
     return app

@@ -67,6 +67,16 @@ c.warmup()
 fb.warmup.assert_called_once()
 print("4. Server fehlt -> Ollama uebernimmt, nur 1 Startversuch OK")
 
+# 4b. Waehrend eines laufenden Starts wartet clean() nicht (Mac: ~40s)
+fb = mock.Mock(spec=Cleaner)
+c = LlamaCppCleaner("egal", "egal.gguf", fallback=fb)
+with c._start_lock:
+    t0 = time.perf_counter()
+    assert c.clean("eins zwei drei vier") == "eins zwei drei vier"
+    assert time.perf_counter() - t0 < 0.5
+fb.clean.assert_not_called()
+print("4b. Server startet noch -> sofort Rohtext, kein Warten OK")
+
 # --- Echter Server ---
 DATA = os.path.join(ROOT, "data", "llamacpp")
 SERVER = os.path.join(DATA, "bin", "llama-server.exe")
@@ -76,6 +86,7 @@ if sys.platform != "win32" or not (os.path.isfile(SERVER) and os.path.isfile(MOD
     sys.exit(0)
 
 import psutil  # noqa: E402
+import requests  # noqa: E402
 
 # 5. Start + Cleanup + Beenden
 fb = mock.Mock(spec=Cleaner)
@@ -92,6 +103,12 @@ for _ in range(5):
     c.clean("okay schreib dem team dass wir den release auf donnerstag verschieben", "de")
     ts.append(time.perf_counter() - t0)
 fb.clean.assert_not_called()
+# Ohne den API-Key des Laufs lehnt der Server ab (sonst offen fuer jede
+# Webseite: llama-server erlaubt CORS fuer alle Origins)
+r = requests.post(f"{c.base_url}/v1/chat/completions",
+                  json={"messages": [{"role": "user", "content": "hi"}], "max_tokens": 1},
+                  timeout=10)
+assert r.status_code == 401, r.status_code
 print(f"5. echter Server: Start {start_s:.1f}s, warm median "
       f"{sorted(ts)[2] * 1000:.0f}ms, Ausgabe: {out!r} OK")
 
