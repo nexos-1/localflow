@@ -13,8 +13,10 @@ Unterschiede zu faster-whisper, die hier ausgeglichen werden:
 - Kein beam_size (mlx-whisper dekodiert greedy) - Parameter wird ignoriert.
 - Kein VAD-Filter; die internen no_speech/logprob-Schwellen von mlx-whisper
   plus unsere geteilten Filter (stt_quality) uebernehmen die Stille-Abwehr.
-- Audio muss als float32-Array (16 kHz mono) kommen; Dateipfade wuerden
-  ffmpeg brauchen. Die App liefert ohnehin nur Puffer.
+- mlx-whisper laedt Dateipfade per ffmpeg-Binary, das auf Macs meist fehlt
+  (macos-e2e 2026-10-08: "No such file or directory: 'ffmpeg'"). Pfade
+  dekodiert transcribe() deshalb selbst ueber PyAV (wie faster-whisper);
+  die App liefert im Diktat ohnehin Puffer.
 """
 
 import logging
@@ -81,10 +83,15 @@ class MlxTranscriber:
                    initial_prompt: str | None = None,
                    allowed_languages: list[str] | None = None,
                    beam_size: int = 1):
-        """audio: float32-NumPy-Array (16 kHz mono).
-        Gibt (text, detected_language, info) zurueck; text ist "" wenn nur
-        Stille/Halluzination erkannt wurde. beam_size wird ignoriert (greedy)."""
+        """audio: float32-NumPy-Array (16 kHz mono) oder Pfad zu einer
+        Audiodatei. Gibt (text, detected_language, info) zurueck; text ist ""
+        wenn nur Stille/Halluzination erkannt wurde. beam_size wird
+        ignoriert (greedy)."""
         import numpy as np
+
+        if isinstance(audio, str):
+            from faster_whisper.audio import decode_audio
+            audio = decode_audio(audio, sampling_rate=16000)
 
         # Energie-Gate: mlx-whisper hat keinen VAD-Filter und halluziniert
         # auf digitaler Stille (z.B. gemutetes Mikrofon) "Thank you." MIT
