@@ -395,13 +395,15 @@ class LlamaCppCleaner:
 
     def __init__(self, server_path: str, model_path: str, timeout: float = 15.0,
                  idle_s: int = 7200, fallback: Cleaner | None = None,
-                 log_path: str | None = None):
+                 log_path: str | None = None, gpu_layers: int = 99):
         # idle_s 2h = gleiche Haltezeit wie Ollamas keep_alive oben.
         self.server_path = server_path
+        self.gpu_layers = int(gpu_layers)
         self.model_path = model_path
         self.idle_s = int(idle_s)
         self.fallback = fallback
         self.log_path = log_path
+        self._log_mode = "w"  # erster Start leert das Log, Neustarts haengen an
         self._timeout = timeout
         self._proc: subprocess.Popen | None = None
         self._job = None
@@ -489,7 +491,7 @@ class LlamaCppCleaner:
         self._port = _free_port()
         args = [self.server_path, "-m", self.model_path,
                 "--host", "127.0.0.1", "--port", str(self._port),
-                "-ngl", "99", "-c", "4096", "-np", "1", "--jinja",
+                "-ngl", str(self.gpu_layers), "-c", "4096", "-np", "1", "--jinja",
                 "--no-mmproj", "--no-webui",
                 "--sleep-idle-seconds", str(self.idle_s)]
         kwargs = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -503,7 +505,8 @@ class LlamaCppCleaner:
         try:
             if self.log_path:
                 # Server-Log (Ladezeiten, Fehler; keine Diktattexte).
-                log_file = open(self.log_path, "w", encoding="utf-8")  # noqa: SIM115
+                log_file = open(self.log_path, self._log_mode, encoding="utf-8")  # noqa: SIM115
+                self._log_mode = "a"
                 kwargs["stdout"] = kwargs["stderr"] = log_file
             t0 = time.perf_counter()
             self._proc = subprocess.Popen(args, **kwargs)
@@ -549,13 +552,25 @@ class LlamaCppCleaner:
             self._stop_proc()
 
     def warmup(self):
-        """Server starten und das Modell einmal durchlaufen lassen."""
+        """Server starten und das Modell einmal durchlaufen lassen. Kippt
+        dabei die GPU (siehe _gpu_failed), einmal auf CPU neu versuchen."""
         try:
-            if self.ensure_running():
+            for _ in range(2):
+                if not self.ensure_running():
+                    break
                 t0 = time.perf_counter()
-                self.clean("hallo test", timeout=self.WARM_TIMEOUT_S)
-                log.info("llama.cpp-Cleanup vorgewaermt (%.1fs)", time.perf_counter() - t0)
-            elif self.fallback:
+                try:
+                    self._complete("hallo test", None, self.WARM_TIMEOUT_S)
+                except requests.HTTPError as e:
+                    if self._gpu_failed(e):
+                        self._switch_to_cpu(background=False)
+                        continue
+                    raise
+                log.info("llama.cpp-Cleanup vorgewaermt (%.1fs, %s)",
+                         time.perf_counter() - t0,
+                         "GPU" if self.gpu_layers else "CPU")
+                return
+            if not self.is_running() and self.fallback:
                 log.warning("llama.cpp nicht verfuegbar - Cleanup laeuft ueber Ollama")
                 self.fallback.warmup()
         except Exception as e:  # noqa: BLE001
@@ -574,7 +589,12 @@ class LlamaCppCleaner:
                     self.fallback.touch()
                 return
             t0 = time.perf_counter()
-            self.clean("hallo test", timeout=self.WARM_TIMEOUT_S)
+            try:
+                self._complete("hallo test", None, self.WARM_TIMEOUT_S)
+            except requests.HTTPError as e:
+                if self._gpu_failed(e):
+                    self._switch_to_cpu(background=True)
+                return
             if time.perf_counter() - t0 > 1.0:
                 log.info("Cleanup-Modell geweckt (%.1fs parallel zur Aufnahme)",
                          time.perf_counter() - t0)
@@ -597,17 +617,12 @@ class LlamaCppCleaner:
         if not self.ensure_running():
             return self.fallback.clean(text, language) if self.fallback else text
         try:
-            r = requests.post(
-                f"{self.base_url}/v1/chat/completions",
-                json={"messages": _build_messages(text, language),
-                      "temperature": 0.1, "max_tokens": 2048},
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                timeout=timeout or self._timeout,
-            )
-            r.raise_for_status()
-            out = r.json()["choices"][0]["message"]["content"]
-            self._last_used = time.monotonic()
-            return _finish(text, out)
+            return _finish(text, self._complete(text, language, timeout or self._timeout))
+        except requests.HTTPError as e:
+            if self._gpu_failed(e):
+                self._switch_to_cpu(background=True)
+            log.warning("Cleanup fehlgeschlagen (%s), nutze Rohtext", e)
+            return text
         except requests.ConnectionError as e:
             # Server weg (abgestuerzt/gekillt): beim naechsten Mal neu starten.
             self._ready = False
@@ -616,6 +631,42 @@ class LlamaCppCleaner:
         except Exception as e:  # noqa: BLE001
             log.warning("Cleanup fehlgeschlagen (%s), nutze Rohtext", e)
             return text
+
+
+    def _complete(self, text: str, language: str | None, timeout: float) -> str:
+        """Ein Chat-Request an den Server; Fehler werden geworfen."""
+        r = requests.post(
+            f"{self.base_url}/v1/chat/completions",
+            json={"messages": _build_messages(text, language),
+                  "temperature": 0.1, "max_tokens": 2048},
+            headers={"Authorization": f"Bearer {self._api_key}"},
+            timeout=timeout,
+        )
+        r.raise_for_status()
+        self._last_used = time.monotonic()
+        return r.json()["choices"][0]["message"]["content"]
+
+    def _gpu_failed(self, e: requests.HTTPError) -> bool:
+        """GPU-Rechenfehler? Danach antwortet llama-server bis zum Neustart
+        auf JEDEN Request mit 500 ("backend is in error state ... recreate
+        the backend"). Feldbefund macos-latest 2026-10-08: "GPU Hang Error"
+        der virtualisierten Metal-GPU; auf echten Macs selten (GPU-Reset,
+        Speicherdruck), dann aber ebenso dauerhaft."""
+        resp = e.response
+        return (self.gpu_layers > 0 and resp is not None and resp.status_code == 500
+                and "Compute error" in (resp.text or ""))
+
+    def _switch_to_cpu(self, background: bool):
+        """Server ohne GPU-Schichten neu starten (gilt bis zum App-Neustart)."""
+        log.warning("GPU-Fehler im llama-server - starte ihn auf der CPU neu "
+                    "(langsamer, aber stabil)")
+        self.gpu_layers = 0
+        with self._start_lock:
+            self._stop_proc()
+        self._failed_at = -1e9
+        if background:
+            threading.Thread(target=self.ensure_running, daemon=True,
+                             name="localflow-llama-cpu-restart").start()
 
 
 def _free_port() -> int:
@@ -706,4 +757,5 @@ def make_cleaner(settings) -> Cleaner | LlamaCppCleaner:
     os.makedirs(log_dir, exist_ok=True)
     return LlamaCppCleaner(server, model, timeout=settings.get("cleanup_timeout_s"),
                            idle_s=settings.get("llamacpp_idle_s"), fallback=ollama,
+                           gpu_layers=settings.get("llamacpp_gpu_layers"),
                            log_path=os.path.join(log_dir, "llama-server.log"))
