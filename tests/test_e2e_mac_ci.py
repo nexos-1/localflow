@@ -104,6 +104,9 @@ def boot(label: str) -> subprocess.Popen:
     # Metal-Init auf dem CI-Runner ~40s (Diagnose 2026-10-08), Reserve 4x
     wait_for(lambda: "llama-server bereit" in log_text()[log_before:], 240,
              f"{label}: llama-server bereit", app)
+    # Vorwaermen kompiliert die Metal-Kernel (CI-VM: ~1 Min)
+    wait_for(lambda: "llama.cpp-Cleanup vorgewaermt" in log_text()[log_before:], 360,
+             f"{label}: Cleanup vorgewaermt", app)
     print(f"{label}: App + llama-server bereit")
     return app
 
@@ -122,29 +125,31 @@ try:
     app_tree = {app.pid} | {c.pid for c in psutil.Process(app.pid).children(recursive=True)}
     assert server.pid in app_tree, "llama-server ist kein Kind von LocalFlow"
 
-    res = dictate(wav_de)
-    print("DE:", res)
-    assert res["status"] == "ok", res
-    assert res["language"] == "de", res
-    assert "Meeting" in res["final"], res
-    assert not FILLER.search(res["final"]), f"Fuellwort uebrig: {res['final']!r}"
-    assert res["cleanup_ms"] > 0, "Cleanup lief nicht"
-
+    log_before = len(log_text())
+    times = []
+    for i in range(3):
+        res = dictate(wav_de)
+        print(f"DE #{i + 1}:", res)
+        assert res["status"] == "ok", res
+        assert res["language"] == "de", res
+        assert "Meeting" in res["final"], res
+        assert not FILLER.search(res["final"]), f"Fuellwort uebrig: {res['final']!r}"
+        times.append(res["cleanup_ms"])
     res = dictate(wav_en)
     print("EN:", res)
     assert res["status"] == "ok" and res["language"] == "en", res
-    assert res["cleanup_ms"] > 0, "Cleanup lief nicht"
+    times.append(res["cleanup_ms"])
+    print("Cleanup-Zeiten (ms):", [round(t) for t in times])
+
+    new_log = log_text()[log_before:]
+    failed = [line for line in new_log.splitlines() if "Cleanup fehlgeschlagen" in line]
+    assert not failed, "Cleanup im llama-server fehlgeschlagen:\n" + "\n".join(failed)
+    assert "Ollama" not in new_log, "Ollama-Fallback statt llama.cpp"
 
     with open(SERVER_LOG, encoding="utf-8", errors="replace") as f:
         slog = f.read()
-    assert re.search(r"metal", slog, re.I), "kein Metal im llama-server-Log"
-    offload = re.search(r"offloaded (\d+)/(\d+) layers to GPU", slog)
-    print("Metal-Offload:", offload.group(0) if offload else "keine Angabe")
-    assert offload and int(offload.group(1)) > 0, "keine Schicht auf der GPU"
-    assert slog.count("print_timing") > 0, "llama-server hat nichts berechnet"
-    log = log_text()
-    assert "Cleanup ueber Ollama" not in log and "laeuft ueber Ollama" not in log, \
-        "Ollama-Fallback statt llama.cpp"
+    assert re.search(r"device MTL\d", slog), "Modell nicht auf Metal (MTL) geladen"
+    assert slog.count("print_timing") >= 4, "llama-server hat die Diktate nicht berechnet"
     print("1. Diktate (de+en) ueber eigenen llama-server auf Metal OK")
 
     # --- 2. Harter Kill: auf macOS bleibt der Server als Waise stehen ---

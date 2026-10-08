@@ -387,6 +387,11 @@ class LlamaCppCleaner:
     # statt zu warten - die lange Grenze blockiert also kein Diktat.
     START_WAIT_S = 180.0
     RETRY_AFTER_S = 60.0  # nach Startfehler nicht bei jedem Diktat neu probieren
+    # Vorwaermen/Wecken laufen im Hintergrund und duerfen lange dauern:
+    # llama.cpp kompiliert die Metal-Kernel erst beim ersten Request (CI-Mac
+    # 2026-10-08: erster Request ~59s fuer 302 Tokens). Mit dem kurzen
+    # Diktat-Timeout wurde dieser Request abgebrochen, bevor alles fertig war.
+    WARM_TIMEOUT_S = 300.0
 
     def __init__(self, server_path: str, model_path: str, timeout: float = 15.0,
                  idle_s: int = 7200, fallback: Cleaner | None = None,
@@ -547,7 +552,9 @@ class LlamaCppCleaner:
         """Server starten und das Modell einmal durchlaufen lassen."""
         try:
             if self.ensure_running():
-                self.clean("hallo test")
+                t0 = time.perf_counter()
+                self.clean("hallo test", timeout=self.WARM_TIMEOUT_S)
+                log.info("llama.cpp-Cleanup vorgewaermt (%.1fs)", time.perf_counter() - t0)
             elif self.fallback:
                 log.warning("llama.cpp nicht verfuegbar - Cleanup laeuft ueber Ollama")
                 self.fallback.warmup()
@@ -567,7 +574,7 @@ class LlamaCppCleaner:
                     self.fallback.touch()
                 return
             t0 = time.perf_counter()
-            self.clean("hallo test")
+            self.clean("hallo test", timeout=self.WARM_TIMEOUT_S)
             if time.perf_counter() - t0 > 1.0:
                 log.info("Cleanup-Modell geweckt (%.1fs parallel zur Aufnahme)",
                          time.perf_counter() - t0)
@@ -576,8 +583,10 @@ class LlamaCppCleaner:
         finally:
             self._touch_lock.release()
 
-    def clean(self, text: str, language: str | None = None) -> str:
-        """Wie Cleaner.clean; ist der Server nicht startbar, uebernimmt Ollama."""
+    def clean(self, text: str, language: str | None = None,
+              timeout: float | None = None) -> str:
+        """Wie Cleaner.clean; ist der Server nicht startbar, uebernimmt Ollama.
+        timeout: nur fuer Vorwaermen/Wecken (Standard: Diktat-Timeout)."""
         text = strip_fillers(text.strip())
         if not text:
             return text
@@ -593,7 +602,7 @@ class LlamaCppCleaner:
                 json={"messages": _build_messages(text, language),
                       "temperature": 0.1, "max_tokens": 2048},
                 headers={"Authorization": f"Bearer {self._api_key}"},
-                timeout=self._timeout,
+                timeout=timeout or self._timeout,
             )
             r.raise_for_status()
             out = r.json()["choices"][0]["message"]["content"]
