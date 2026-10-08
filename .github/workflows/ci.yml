@@ -102,3 +102,27 @@ jobs:
           test -x "$HOME/Applications/LocalFlow.app/Contents/MacOS/localflow"
           test -f "$HOME/Applications/LocalFlow.app/Contents/Resources/localflow.icns"
           cat "$HOME/Applications/LocalFlow.app/Contents/MacOS/localflow"
+
+  # Ende-zu-Ende auf echtem macOS (Apple Silicon): install.sh real ausfuehren
+  # (inkl. llama.cpp b10991 mit Metal + Gemma 3 4B, SHA-256-geprueft), App
+  # starten und mit `say` gesprochene Diktate durch die volle Pipeline
+  # schicken. Prueft Metal-Offload im llama-server und das Aufraeumen eines
+  # verwaisten Servers nach SIGKILL. Mikrofon/Hotkeys sind nicht testbar.
+  macos-e2e:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: install.sh (venv, Dependencies, llama.cpp, Modell)
+        run: bash install.sh
+      - name: E2E-Diktat ueber llama.cpp auf Metal
+        run: .venv/bin/python tests/test_e2e_mac_ci.py
+      - name: Logs bei Fehler
+        if: failure()
+        run: |
+          tail -n 80 data/logs/localflow.log || true
+          tail -n 60 data/logs/llama-server.log || true
+          tail -n 60 "$TMPDIR/localflow-stdout.log" || true
