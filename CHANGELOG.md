@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Lange Diktate (2026-11-12)
+Anlass: ein Diktat mit 624 Woertern wurde nach 300 s mitten im Satz
+abgeschnitten, der Cleanup lief unter Last in den 8-s-Timeout und es kam der
+Rohtext. Der Text war im Verlauf, aber nirgends sichtbar.
+- **Maximale Diktatdauer jetzt eine Stunde** (`max_duration_s` 3600 statt
+  300). Eine gespeicherte Config mit dem alten Standard 300 wird beim Start
+  gehoben; ein anders gewaehlter Wert bleibt.
+- **Warnung eine Minute vor dem Auto-Stopp** als Tray-Benachrichtigung.
+- **Sicherung langer Aufnahmen**: ab 60 s wird der Ton als WAV nach
+  `data/recordings/` geschrieben, bevor die Verarbeitung beginnt (auch vor dem
+  Warten auf die Modelle). Es bleiben die neuesten 5, eine Stunde sind etwa
+  115 MB. Nur lokal.
+- **Cleanup fuer lange Texte**: der Timeout waechst mit der Laenge (der
+  eingestellte gilt bis 150 Woerter, 624 Woerter bekommen 33 s). Bis 700
+  Woerter geht der Text in einem Stueck durchs Modell, darueber in Abschnitten
+  (der llama-server hat 4096 Token Kontext); jeder Abschnitt faellt einzeln auf
+  den Rohtext zurueck. Gemessen am echten Diktat: in einem Stueck 5 s, kein
+  Satz verloren; in Abschnitten zu 200 Woertern liess Gemma 3 4B dagegen
+  reproduzierbar einen Satz weg, deshalb so grosse Abschnitte.
+- **Schutz gegen verschluckte Saetze**: fehlen in der Cleanup-Ausgabe 8 oder
+  mehr Inhaltswoerter am Stueck ersatzlos, wird der Rohtext eingefuegt.
+  Nachgemessen an 1.514 echten Diktaten aus dem Verlauf: 12 davon hatten so
+  einen Verlust (8 bis 45 Woerter, ganze Saetze), 99 % fehlten hoechstens 6
+  Woerter am Stueck. Umformulierungen zaehlen nicht.
+- Tests: `tests/test_long_dictation.py`.
+
 ### Added
 - **llama.cpp als Cleanup-Engine** (Standard, `cleanup_engine` in der Config):
   LocalFlow startet einen eigenen `llama-server` aus `data/llamacpp/` als

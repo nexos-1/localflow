@@ -20,6 +20,10 @@ log = logging.getLogger("localflow.settings")
 APP_DIR = os.environ.get("LOCALFLOW_DATA_DIR") or os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
+# Der fruehere Standard von max_duration_s; gespeicherte Configs mit genau
+# diesem Wert werden beim Laden auf den neuen Standard gehoben.
+OLD_MAX_DURATION_S = 300
+
 DEFAULTS = {
     "hotkey": "ctrl+win",          # Push-to-Talk: halten zum Aufnehmen
     # Optionaler ZWEITER Diktat-Hotkey - laeuft parallel zum ersten, gleiches
@@ -80,7 +84,11 @@ DEFAULTS = {
     "duck_audio": True,             # andere Apps (YouTube etc.) waehrend Aufnahme stummschalten
     "duck_volume": 0.0,             # Restlautstaerke waehrend der Aufnahme (0 = komplett stumm)
     "min_duration_s": 0.4,          # kuerzere Aufnahmen verwerfen (versehentlicher Tastendruck)
-    "max_duration_s": 300,          # Auto-Stopp (vergessenes Freisprechen)
+    # Auto-Stopp (vergessenes Freisprechen). Frueher 300 s: ein langes Diktat
+    # (Feldbefund 2026-11-12, 624 Woerter) wurde mitten im Satz abgeschnitten.
+    # Eine Stunde reicht fuer jedes echte Diktat und faengt trotzdem eine
+    # vergessene Aufnahme ab. 0 = kein Limit.
+    "max_duration_s": 3600,
     "dashboard_port": 5111,
     "paste_restore_delay": 1.0,
     # Kurze Diktate TIPPEN statt einfuegen (SendInput mit Unicode-Events).
@@ -164,6 +172,14 @@ class Settings:
                     self.save()
             except (TypeError, ValueError):
                 self.data["overlay_font_size"] = DEFAULTS["overlay_font_size"]
+            # Migration: 300 s war der alte Standard und steht in jeder
+            # gespeicherten Config, auch wenn nie jemand ihn gewaehlt hat.
+            # Ein anderer Wert ist eine bewusste Wahl und bleibt.
+            if stored.get("max_duration_s") == OLD_MAX_DURATION_S:
+                self.data["max_duration_s"] = DEFAULTS["max_duration_s"]
+                log.info("max_duration_s vom alten Standard %d s auf %d s angehoben",
+                         OLD_MAX_DURATION_S, DEFAULTS["max_duration_s"])
+                self.save()
             # Alte Schluessel stehen noch in der Datei: einmal neu schreiben.
             if any(old in stored for old in RENAMED_KEYS):
                 log.info("Settings-Schluessel umbenannt: %s",

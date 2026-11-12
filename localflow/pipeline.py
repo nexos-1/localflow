@@ -10,7 +10,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-from .cleanup import Cleaner, LlamaCppCleaner, make_cleaner
+from .cleanup import Cleaner, LlamaCppCleaner, clean_long, make_cleaner
 from .db import Database
 from .settings import Settings
 from .stt_factory import make_transcriber
@@ -163,7 +163,7 @@ class Pipeline:
         if (self.settings.get("ai_cleanup") and self.cleaner is not None
                 and len(text.split()) >= min_words):
             t0 = time.perf_counter()
-            text = self.cleaner.clean(text, detected)
+            text = clean_long(self.cleaner, text, detected)
             result.cleanup_ms = (time.perf_counter() - t0) * 1000
 
         text = self._apply_dictionary(text, entries, result)

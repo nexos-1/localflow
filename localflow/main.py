@@ -26,6 +26,7 @@ from .overlay_model import CLIPBOARD_HOLD_S, DONE_HOLD_S, ERROR_HOLD_S, WAVE_STA
 from .pipeline import Pipeline
 from .platform import get_backends
 from .settings import APP_DIR, Settings
+from .recordings import SAVE_RECORDING_MIN_S, save_recording
 
 log = logging.getLogger("localflow")
 
@@ -34,6 +35,16 @@ log = logging.getLogger("localflow")
 # diesen Dateideskriptor, ein geschlossenes/GC-tes Objekt wuerde die Diagnose
 # genau dann verschlucken, wenn man sie braucht.
 _crash_file = None
+
+
+# So viele Sekunden vor dem Auto-Stopp kommt die Warnung.
+MAX_DURATION_WARN_S = 60
+
+
+def _minutes(seconds: float) -> str:
+    """'60 min' / '1 min 30 s' fuer die Warnung."""
+    m, s = divmod(int(seconds), 60)
+    return f"{m} min" + (f" {s} s" if s else "")
 
 
 def _error_reason(exc: BaseException) -> str:
@@ -128,6 +139,7 @@ class LocalFlowApp:
         self._record_start_mono = 0.0
         self._record_session = 0
         self._watchdog_timer: threading.Timer | None = None
+        self._warn_timer: threading.Timer | None = None
         self.controller = None
         self.ptt = None
         self.ptt2 = None                     # optionaler zweiter Diktat-Hotkey
@@ -503,11 +515,27 @@ class LocalFlowApp:
         self._watchdog_timer = threading.Timer(max_s, check)
         self._watchdog_timer.daemon = True
         self._watchdog_timer.start()
+        # Eine Minute vorher Bescheid geben, damit niemand mitten im Satz
+        # abgeschnitten wird, ohne es zu merken (nur bei Limits ab 2 min).
+        if max_s >= 2 * MAX_DURATION_WARN_S:
+            def warn():
+                if self._record_session == session and self.recorder.is_recording:
+                    log.info("Diktat endet in %d s (Maximaldauer %ss)", MAX_DURATION_WARN_S, max_s)
+                    self._notify("Diktat endet in einer Minute",
+                                 f"Nach {_minutes(max_s)} stoppt die Aufnahme automatisch. "
+                                 "Jetzt beenden und neu starten, um weiterzusprechen.")
+            self._warn_timer = threading.Timer(max_s - MAX_DURATION_WARN_S, warn)
+            self._warn_timer.daemon = True
+            self._warn_timer.start()
 
     def _cancel_watchdog(self):
         if self._watchdog_timer is not None:
             self._watchdog_timer.cancel()
             self._watchdog_timer = None
+        # getattr: Tests bauen die App ohne __init__ (object.__new__).
+        if getattr(self, "_warn_timer", None) is not None:
+            self._warn_timer.cancel()
+            self._warn_timer = None
 
     def _run_preview(self, session: int):
         """Live-Vorschau: waehrend der Aufnahme wiederholt das bisher
@@ -647,10 +675,15 @@ class LocalFlowApp:
                        submit=False):
         inj = self.backends.inject
         try:
-            if not self.models_ready.wait(timeout=120):
-                raise RuntimeError("Modelle nicht rechtzeitig geladen")
             audio = self._trim_muted_head(audio, trim_ctx)
             duration = len(audio) / 16000
+            # Lange Diktate zuerst als WAV sichern, noch vor dem Warten auf die
+            # Modelle: scheitert danach etwas (Modelle, STT, Einfuegen,
+            # Absturz), ist das Gesagte nicht verloren.
+            if duration >= SAVE_RECORDING_MIN_S:
+                save_recording(audio, os.path.join(APP_DIR, "recordings"))
+            if not self.models_ready.wait(timeout=120):
+                raise RuntimeError("Modelle nicht rechtzeitig geladen")
             result = self.pipeline.process(audio, duration_s=duration)
             if result.status != "ok" or (not result.final_text and not result.commands):
                 log.info("Kein Text (status=%s)", result.status)

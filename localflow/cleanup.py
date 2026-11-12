@@ -271,8 +271,10 @@ class Cleaner:
         finally:
             self._touch_lock.release()
 
-    def clean(self, text: str, language: str | None = None) -> str:
-        """Gibt bereinigten Text zurueck; bei jedem Fehler den Rohtext (nie blockieren)."""
+    def clean(self, text: str, language: str | None = None,
+              timeout: float | None = None) -> str:
+        """Gibt bereinigten Text zurueck; bei jedem Fehler den Rohtext (nie blockieren).
+        timeout: fuer lange Diktate (clean_long), sonst der eingestellte."""
         text = strip_fillers(text.strip())
         if not text:
             return text
@@ -286,7 +288,7 @@ class Cleaner:
                     "keep_alive": self.keep_alive,
                     "options": {"temperature": 0.1, "num_predict": 2048},
                 },
-                timeout=self.timeout,
+                timeout=timeout or self.timeout,
             )
             r.raise_for_status()
             out = r.json()["message"]["content"]
@@ -318,6 +320,75 @@ def strip_fillers(text: str) -> str:
     out = re.sub(r"[ \t]+([,.!?])", r"\1", out)
     out = re.sub(r"[ \t]{2,}", " ", out).strip()
     return out or text
+
+
+# Lange Diktate (Feldbefund 2026-11-12: 624 Woerter, Cleanup-Timeout nach 8 s
+# unter Last, Rohtext eingefuegt). Gemessen am echten Diktat mit Gemma 3 4B:
+# in EINEM Stueck 5 s und 99 % der Inhaltswoerter erhalten; in Abschnitten von
+# 200 Woertern liess das Modell reproduzierbar den ersten Satz eines Abschnitts
+# weg (95,5 %). Daher: bis CHUNK_WORDS in einem Stueck, mit einem Timeout, der
+# mit der Laenge waechst; erst darueber teilen, denn der llama-server hat nur
+# 4096 Token Kontext fuer Prompt, Diktat UND Antwort.
+# 700 Woerter sind etwa 1.400 Token hin und ebenso viele zurueck; mit Prompt
+# und Beispielen bleibt das unter 4096 und unter max_tokens 2048.
+CHUNK_WORDS = 700
+# Der eingestellte Timeout gilt fuer bis zu so viele Woerter; laengere Texte
+# bekommen anteilig mehr Zeit.
+TIMEOUT_BASE_WORDS = 150
+# Ein Satz ohne Punkt (Whisper setzt bei Redefluss oft keinen) wird an einem
+# Komma in den letzten so vielen Woertern geteilt, sonst hart nach max_words.
+_COMMA_WINDOW = 120
+
+
+def split_for_cleanup(text: str, max_words: int = CHUNK_WORDS) -> list[str]:
+    """Text in Abschnitte von hoechstens max_words Woertern teilen, bevorzugt
+    an Satzenden, sonst an einem Komma, sonst hart. Alle Woerter bleiben in
+    ihrer Reihenfolge erhalten; nur die Leerzeichen dazwischen werden einfach."""
+    words = text.split()
+    if len(words) <= max_words:
+        return [" ".join(words)] if words else []
+    chunks: list[str] = []
+    start = 0
+    while start < len(words):
+        end = min(start + max_words, len(words))
+        if end < len(words):
+            cut = None
+            for i in range(end - 1, start, -1):          # letztes Satzende
+                if words[i][-1:] in ".!?":
+                    cut = i + 1
+                    break
+            if cut is None:                               # sonst ein Komma
+                for i in range(end - 1, max(start, end - _COMMA_WINDOW), -1):
+                    if words[i].endswith(","):
+                        cut = i + 1
+                        break
+            end = cut or end
+        chunks.append(" ".join(words[start:end]))
+        start = end
+    return chunks
+
+
+def timeout_for(words: int, base: float) -> float:
+    """Eingestellter Timeout bis TIMEOUT_BASE_WORDS Woerter, darueber anteilig."""
+    return base * max(1.0, words / TIMEOUT_BASE_WORDS)
+
+
+def clean_long(cleaner, text: str, language: str | None = None,
+               max_words: int = CHUNK_WORDS) -> str:
+    """Wie cleaner.clean, aber mit einem Timeout, der mit der Laenge waechst,
+    und ein sehr langer Text geht abschnittsweise durch das Modell. Jeder
+    Abschnitt faellt einzeln auf seinen Rohtext zurueck (Fehler, Timeout,
+    fehlender Inhalt); der Rest bleibt bereinigt."""
+    parts = split_for_cleanup(text, max_words)
+    base = getattr(cleaner, "timeout", None)
+    def one(part: str) -> str:
+        if base:
+            return cleaner.clean(part, language, timeout=timeout_for(len(part.split()), base))
+        return cleaner.clean(part, language)
+    if len(parts) <= 1:
+        return one(text)
+    log.info("Langes Diktat: Cleanup in %d Abschnitten", len(parts))
+    return " ".join(p for p in map(one, parts) if p)
 
 
 def _build_messages(text: str, language: str | None) -> list[dict]:
@@ -355,12 +426,41 @@ def _strip_wrapping(out: str) -> str:
 
 def _plausible(raw: str, out: str) -> bool:
     """Schutz dagegen, dass das Modell antwortet statt bereinigt:
-    Die Laenge muss in der Naehe des Originals bleiben."""
+    Die Laenge muss in der Naehe des Originals bleiben, und es darf kein
+    ganzer Satz ersatzlos fehlen."""
     rw, ow = len(raw.split()), len(out.split())
     if rw == 0:
         return True
     ratio = ow / rw
-    return 0.4 <= ratio <= 1.8
+    if not 0.4 <= ratio <= 1.8:
+        return False
+    dropped = dropped_content(raw, out)
+    if dropped >= MAX_DROPPED_CONTENT_WORDS:
+        log.warning("Cleanup liess %d Inhaltswoerter am Stueck weg, nutze Rohtext", dropped)
+        return False
+    return True
+
+
+# Das Modell laesst gelegentlich einen ganzen Satz weg. Gemessen 2026-11-12 an
+# 1.514 echten Diktaten: in 99 % fehlen hoechstens 6 Inhaltswoerter (mehr als
+# 3 Buchstaben) am Stueck, meist Fuellsel und Wiederholungen; 12 verloren 8
+# bis 45 am Stueck, also ganze Saetze (z.B. "muss kein Live-Chat sein, keine
+# Live-Verbindung zu einem Mitarbeiter ..."). Ab dieser Laenge gilt der
+# Rohtext. Umformulierungen zaehlen nicht, nur ersatzlos fehlende Woerter.
+MAX_DROPPED_CONTENT_WORDS = 8
+_CONTENT_RE = re.compile(r"\w+")
+
+
+def dropped_content(raw: str, out: str) -> int:
+    """Laengste Folge von Inhaltswoertern des Rohtexts, die in der Ausgabe
+    ersatzlos fehlt."""
+    import difflib
+    words = lambda s: [w for w in _CONTENT_RE.findall(s.lower()) if len(w) > 3]  # noqa: E731
+    a, b = words(raw), words(out)
+    if len(a) < MAX_DROPPED_CONTENT_WORDS:
+        return 0
+    sm = difflib.SequenceMatcher(None, a, b, autojunk=False)
+    return max((a2 - a1 for op, a1, a2, _b1, _b2 in sm.get_opcodes() if op == "delete"), default=0)
 
 
 class LlamaCppCleaner:
